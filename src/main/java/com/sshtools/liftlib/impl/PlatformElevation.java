@@ -215,6 +215,7 @@ public interface PlatformElevation {
 			cmd.add("osascript");
 			cmd.add("-e");
 			cmd.add(String.format("do shell script \"%s\" with administrator privileges", bui.toString()));
+			System.out.println(String.join(" ", cmd));
 		}
 	}
 
@@ -374,10 +375,11 @@ public interface PlatformElevation {
 			if (bui.length() > 0) {
 				bui.append(' ');
 			}
-			if (i > 0)
+			var str = escapeSingleQuotes(cmd.get(i));
+			if(str.contains(" "))
 				bui.append(qu);
-			bui.append(escapeSingleQuotes(cmd.get(i)));
-			if (i > 0)
+			bui.append(str);
+			if(str.contains(" "))
 				bui.append(qu);
 		}
 		return bui;
