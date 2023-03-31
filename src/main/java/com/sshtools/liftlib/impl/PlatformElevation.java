@@ -191,7 +191,6 @@ public interface PlatformElevation {
 				cmd.add(1, "--user");
 				cmd.add(2, u);
 			});
-			System.out.println(String.join(" ", cmd));
 		}
 	}
 
@@ -215,7 +214,6 @@ public interface PlatformElevation {
 			cmd.add("osascript");
 			cmd.add("-e");
 			cmd.add(String.format("do shell script \"%s\" with administrator privileges", bui.toString()));
-			System.out.println(String.join(" ", cmd));
 		}
 	}
 
@@ -234,35 +232,28 @@ public interface PlatformElevation {
 		public void elevate(ProcessBuilder builder) {
 
 			var cmd = builder.command();
-			var doit = true;
-			
-			if(doit) {
-//				System.out.println(String.join(" ", cmd));
-				var exe = cmd.remove(0);
-				var args = new ArrayList<String>(cmd).stream().map(s -> {
-					return "\"\"\"" + s + "\"\"\"";
-				}).collect(Collectors.toList());
-	
-				cmd.clear();
-				cmd.add("powershell");
-				username.ifPresent(u -> {
-					cmd.add(1, "-credential");
-					cmd.add(2, u);
-				});
-				cmd.add("-command");
-	
-				String powerShell;
-				if (args.isEmpty()) {
-					powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
-				} else {
-					powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs", exe,
-							String.join(",", args));
-				}
-	
-				cmd.add(String.format("&{%s}", powerShell));
+
+			var exe = cmd.remove(0);
+			var args = new ArrayList<String>(cmd).stream().map(s -> "\"\"\"" + s + "\"\"\""
+			).collect(Collectors.toList());
+
+			cmd.clear();
+			cmd.add("powershell");
+			username.ifPresent(u -> {
+				cmd.add(1, "-credential");
+				cmd.add(2, u);
+			});
+			cmd.add("-command");
+
+			String powerShell;
+			if (args.isEmpty()) {
+				powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
+			} else {
+				powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs",
+						exe, String.join(",", args));
 			}
 
-//			System.out.println(String.join(" ", cmd));
+			cmd.add(String.format("&{%s}", powerShell));
 
 		}
 	}
@@ -376,10 +367,10 @@ public interface PlatformElevation {
 				bui.append(' ');
 			}
 			var str = escapeSingleQuotes(cmd.get(i));
-			if(str.contains(" "))
+			if (str.contains(" "))
 				bui.append(qu);
 			bui.append(str);
-			if(str.contains(" "))
+			if (str.contains(" "))
 				bui.append(qu);
 		}
 		return bui;

@@ -67,10 +67,15 @@ public class ElevatedJVM implements Closeable {
 		var socketAddress = UnixDomainSocketAddress.of(socketPath);
 
 		var p = new LinkedHashSet<String>();
-		p.addAll(Arrays.asList("java.library.path", "jna.library.path", "java.security.policy"));
+		if(!OS.isWindows()) {
+			/* TODO passing on this on Windows prevents execution as there
+			 * is some issue with escaping spaces */
+			p.addAll(Arrays.asList("java.library.path", "jna.library.path", "java.security.policy"));
+		}
 		for (var s : p) {
-			if (System.getProperty(s) != null)
+			if (System.getProperty(s) != null) {
 				vargs.add("-D" + s + "=" + System.getProperty(s));
+			}
 		}
 		vargs.add("-Dliftlib.socket=" + socketPath.toString()); // more visible but should always work
 		vargs.add(Helper.class.getName());

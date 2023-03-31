@@ -151,7 +151,7 @@ public class OS {
 	public static String getJavaPath() {
 		String javaExe = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
 		if (isWindows()) {
-			if (!javaExe.toLowerCase().endsWith("w")) {
+			if (!Boolean.getBoolean("liftlib.alwaysConsole") && !javaExe.toLowerCase().endsWith("w")) {
 				javaExe += "w";
 			}
 			javaExe += ".exe";
@@ -233,26 +233,28 @@ public class OS {
 		var l = new ArrayList<String>();
 		if(modulePath != null) {
 			for(var path : modulePath.split(File.pathSeparator)) {
-				var dir = Paths.get(path);
-				if(Files.isDirectory(dir)) {
-					try {
-						var jars = false;
-						for(var d : Files.list(dir).collect(Collectors.toList())) {
-							if(d.getFileName().toString().endsWith(".jar")) {
-								l.add(d.toAbsolutePath().toString());
-								jars = true;
+				if(!path.equals("")) {
+					var dir = Paths.get(path);
+					if(Files.isDirectory(dir)) {
+						try {
+							var jars = false;
+							for(var d : Files.list(dir).collect(Collectors.toList())) {
+								if(d.getFileName().toString().endsWith(".jar")) {
+									l.add(d.toAbsolutePath().toString());
+									jars = true;
+								}
+							}
+							if(!jars) {
+								l.add(dir.toString());
 							}
 						}
-						if(!jars) {
-							l.add(dir.toString());
+						catch(IOException ioe) {
+							throw new UncheckedIOException(ioe);
 						}
 					}
-					catch(IOException ioe) {
-						throw new UncheckedIOException(ioe);
+					else {
+						l.add(path);
 					}
-				}
-				else {
-					l.add(path);
 				}
 			}
 		}
