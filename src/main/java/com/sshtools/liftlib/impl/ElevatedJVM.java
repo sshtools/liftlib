@@ -60,7 +60,7 @@ public class ElevatedJVM implements Closeable {
 		}
 
 		if (cp != null && cp.length() > 0) {
-			if(OS.isMacOs()) {
+			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
 				/* Argh. Work around for Mac OS and it's very restrictive permissions
 				 * system. As an administrator, even we can't read certain files
 				 * (without consent), but consent can never be given. 
