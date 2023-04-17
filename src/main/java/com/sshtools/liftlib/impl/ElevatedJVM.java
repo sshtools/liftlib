@@ -114,18 +114,28 @@ public class ElevatedJVM implements Closeable {
 		}
 		vargs.add("-Dliftlib.socket=" + socketPath.toString()); // more visible but should always work
 		vargs.add(Helper.class.getName());
-
+		
 		var serverChannel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
 		serverChannel.bind(socketAddress);
 
 		var builder = new ProcessBuilder(vargs);
+		
+		if(OS.isMacOs()) {
+			/* Another Mac OS X hack. If you try to run GUI applications in the 
+			 * elevated helper, it doesn't detect the Aqua session. We don't actually
+			 * need this for the helper, only anything spawned from it (e.g. an uninstaller / updater
+			 * in Jaul toolbox)
+			 */
+			builder.environment().put("AWT_FORCE_HEADFUL", "true");
+		}
+		
 		builder.environment().put("LIFTLIB_SOCKET", socketPath.toString()); // likely wont get passed on (e.g pkexec)
 		builder.redirectError(Redirect.INHERIT);
 		builder.redirectOutput(Redirect.INHERIT);
 		builder.redirectInput(Redirect.INHERIT);
 
 		elevation.elevate(builder);
-
+		
 		process = builder.start();  // todo temp
 		try {
 			lock.acquire();
