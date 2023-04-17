@@ -16,10 +16,14 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.stream.Collectors;
 
 import com.sshtools.liftlib.Helper;
 import com.sshtools.liftlib.OS;
@@ -31,6 +35,7 @@ public class ElevatedJVM implements Closeable {
 	private final PlatformElevation elevation;
 	private final Semaphore lock = new Semaphore(1);
 	private final Path socketPath;
+	private final List<Path> removeFilesOnClose = new ArrayList<>();
 
 	private SocketChannel channel;
 	private InputStream input;
@@ -55,6 +60,36 @@ public class ElevatedJVM implements Closeable {
 		}
 
 		if (cp != null && cp.length() > 0) {
+			if(OS.isMacOs()) {
+				/* Argh. Work around for Mac OS and it's very restrictive permissions
+				 * system. As an administrator, even we can't read certain files
+				 * (without consent), but consent can never be given. 
+				 * 
+				 * https://eclecticlight.co/2020/02/15/why-privileged-commands-may-never-be-allowed/
+				 * is about the closest to some kind of explanation for this.
+				 */
+				var tmpPath = Paths.get("/tmp/liftlib/" + Integer.toUnsignedLong(hashCode()) + ".tmp");
+				Files.createDirectories(tmpPath);
+				int idx = 0;
+				for(var cpEl : cp.split(File.pathSeparator)) {
+					var path = Paths.get(cpEl);
+					var target = tmpPath.resolve(path.getFileName());
+					if(Files.isDirectory(path)) {
+						target = tmpPath.resolve("dir" + (idx ++));
+						Files.createDirectories(target);
+						OS.copy(path, target);
+					}
+					else {
+						Files.copy(path, target, StandardCopyOption.COPY_ATTRIBUTES);
+					}
+					removeFilesOnClose.add(target);
+					target.toFile().deleteOnExit();
+				}
+				cp = String.join(File.pathSeparator, removeFilesOnClose.stream().map(Path::toString).collect(Collectors.toList()));
+				removeFilesOnClose.add(tmpPath);
+				tmpPath.toFile().deleteOnExit();
+			}
+			
 			vargs.add("--class-path");
 			vargs.add(cp);
 		}
@@ -181,7 +216,17 @@ public class ElevatedJVM implements Closeable {
 								elevation.lower();
 							}
 							finally {
-								Files.delete(socketPath);
+								try {
+									Files.delete(socketPath);
+								}
+								finally {
+									for(var p : removeFilesOnClose) {
+										try {
+											Files.delete(p);
+										}
+										catch(Exception e) {}
+									}
+								}
 							}
 						}
 					}
