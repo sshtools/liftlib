@@ -80,9 +80,20 @@ public class ElevatedJVM implements Closeable {
 		var mp = System.getProperty("jdk.module.path");
 		if (mp != null && mp.length() > 0) {
 			for(var p : mp.split(File.pathSeparator)) {
-				p = p .replace('\\', '/');
-				if(p.matches(".*/liftlib.*\\.jar") || p.matches(".*/liftlib/target/classes")) {
-					modular = true;
+				var f = Paths.get(p);
+				if(Files.isDirectory(f)) {
+					try(var dstream = Files.newDirectoryStream(f)) {
+						for(var d : dstream) {
+							modular = isLiftLib(d);
+							if(modular)
+								break;
+						}
+					}
+				}
+				else {
+					modular = isLiftLib(f);
+					if(modular)
+						break;
 				}
 			}
 			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
@@ -196,6 +207,14 @@ public class ElevatedJVM implements Closeable {
 			}
 		}
 		LOG.log(Level.INFO, "Helper exited cleanly.");
+	}
+
+	private boolean isLiftLib(Path d) {
+		var fn = d.getFileName().toString();
+		if(fn.startsWith("liftlib") && fn.endsWith(".jar")) {
+			return true;
+		}
+		return false;
 	}
 
 	private String fixMacClassDevelopmentPath(String cp, AtomicInteger idx) throws IOException {
