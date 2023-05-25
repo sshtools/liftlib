@@ -80,20 +80,23 @@ public class ElevatedJVM implements Closeable {
 		var mp = System.getProperty("jdk.module.path");
 		if (mp != null && mp.length() > 0) {
 			for(var p : mp.split(File.pathSeparator)) {
-				var f = Paths.get(p);
-				if(Files.isDirectory(f)) {
-					try(var dstream = Files.newDirectoryStream(f)) {
-						for(var d : dstream) {
-							modular = isLiftLib(d);
-							if(modular)
-								break;
+				if(!modular) {
+					var f = Paths.get(p);
+					if(Files.isDirectory(f)) {
+						try(var dstream = Files.newDirectoryStream(f)) {
+							for(var d : dstream) {
+								modular = isLiftLib(d);
+								if(modular) {
+									break;
+								}
+							}
 						}
 					}
-				}
-				else {
-					modular = isLiftLib(f);
-					if(modular)
-						break;
+					else {
+						modular = isLiftLib(f);
+						if(modular)
+							break;
+					}
 				}
 			}
 			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
