@@ -15,8 +15,6 @@
  */
 package com.sshtools.liftlib.impl;
 
-import static com.sshtools.liftlib.OS.expandModulePath;
-
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
@@ -38,12 +36,17 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import com.sshtools.liftlib.Helper;
 import com.sshtools.liftlib.OS;
 
 public class ElevatedJVM implements Closeable {
+	
+	final static Logger LOG = Logger.getLogger(ElevatedJVM.class.getSimpleName());
 
 	private final Process process; 
 	private boolean closed;
@@ -59,53 +62,43 @@ public class ElevatedJVM implements Closeable {
 	private Thread thread;;
 
 	public ElevatedJVM(PlatformElevation elevation) throws IOException {
+		
+		LOG.info("Creating elevated JVM");
+		
 		this.elevation = elevation;
 
 		var vargs = new ArrayList<String>();
+		var modular = false;
 
 		vargs.add(OS.getJavaPath());
-
-		var cp = System.getProperty("java.class.path");
-		var mp = expandModulePath(System.getProperty("jdk.module.path"));
-		if (mp != null) {
-			if (cp == null || cp.equals(""))
-				cp = mp;
-			else
-				cp = cp + File.pathSeparator + mp;
+		
+		if(Boolean.getBoolean("liftlib.debug")) {
+			vargs.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:" + System.getProperty("liftlib.debugPort", "8000"));
 		}
+		var idx = new AtomicInteger(0);
+
+		var mp = System.getProperty("jdk.module.path");
+		if (mp != null && mp.length() > 0) {
+			for(var p : mp.split(File.pathSeparator)) {
+				p = p .replace('\\', '/');
+				if(p.matches(".*/liftlib.*\\.jar") || p.matches(".*/liftlib/target/classes")) {
+					modular = true;
+				}
+			}
+			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+				mp = fixMacClassDevelopmentPath(mp, idx);
+			}
+			vargs.add("-p");
+			vargs.add(mp);
+		}
+		var cp = System.getProperty("java.class.path");
 
 		if (cp != null && cp.length() > 0) {
 			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
-				/* Argh. Work around for Mac OS and it's very restrictive permissions
-				 * system. As an administrator, even we can't read certain files
-				 * (without consent), but consent can never be given. 
-				 * 
-				 * https://eclecticlight.co/2020/02/15/why-privileged-commands-may-never-be-allowed/
-				 * is about the closest to some kind of explanation for this.
-				 */
-				var tmpPath = Paths.get("/tmp/liftlib/" + Integer.toUnsignedLong(hashCode()) + ".tmp");
-				Files.createDirectories(tmpPath);
-				int idx = 0;
-				for(var cpEl : cp.split(File.pathSeparator)) {
-					var path = Paths.get(cpEl);
-					var target = tmpPath.resolve(path.getFileName());
-					if(Files.isDirectory(path)) {
-						target = tmpPath.resolve("dir" + (idx ++));
-						Files.createDirectories(target);
-						OS.copy(path, target);
-					}
-					else {
-						Files.copy(path, target, StandardCopyOption.COPY_ATTRIBUTES);
-					}
-					removeFilesOnClose.add(target);
-					target.toFile().deleteOnExit();
-				}
-				cp = String.join(File.pathSeparator, removeFilesOnClose.stream().map(Path::toString).collect(Collectors.toList()));
-				removeFilesOnClose.add(tmpPath);
-				tmpPath.toFile().deleteOnExit();
+				cp = fixMacClassDevelopmentPath(cp, idx);
 			}
 			
-			vargs.add("--class-path");
+			vargs.add("-classpath");
 			vargs.add(cp);
 		}
 
@@ -122,13 +115,26 @@ public class ElevatedJVM implements Closeable {
 			 * is some issue with escaping spaces */
 			p.addAll(Arrays.asList("java.library.path", "jna.library.path", "java.security.policy"));
 		}
+		p.add("file.encoding");
 		for (var s : p) {
 			if (System.getProperty(s) != null) {
 				vargs.add("-D" + s + "=" + System.getProperty(s));
 			}
 		}
 		vargs.add("-Dliftlib.socket=" + socketPath.toString()); // more visible but should always work
-		vargs.add(Helper.class.getName());
+		if(modular) {
+			/* TODO Use ProcessHandler to get the full original command line and process that instead.
+			 *  This means it will have to be able to properly pass all java command arguments 
+			 */
+			vargs.add("--add-modules");
+			vargs.add("ALL-MODULE-PATH");
+			
+			vargs.add("-m");
+			vargs.add("com.sshtools.liftlib/" + Helper.class.getName());
+		}
+		else {
+			vargs.add(Helper.class.getName());
+		}
 		
 		var serverChannel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
 		serverChannel.bind(socketAddress);
@@ -149,7 +155,10 @@ public class ElevatedJVM implements Closeable {
 		builder.redirectOutput(Redirect.INHERIT);
 		builder.redirectInput(Redirect.INHERIT);
 
+		LOG.log(Level.INFO, "Helper Command: {0}", String.join(" ", builder.command()));
 		elevation.elevate(builder);
+
+		LOG.log(Level.INFO, "Elevator Command: {0}", String.join(" ", builder.command()));
 		
 		process = builder.start();  // todo temp
 		try {
@@ -159,7 +168,9 @@ public class ElevatedJVM implements Closeable {
 		}
 		thread = new Thread(() -> {
 			try {
+				LOG.log(Level.INFO, "Waiting for connection from helper");
 				channel = serverChannel.accept();
+				LOG.log(Level.INFO, "Got connection from helper");
 				input = Channels.newInputStream(channel);
 				output = Channels.newOutputStream(channel);
 				ready = true;
@@ -170,6 +181,7 @@ public class ElevatedJVM implements Closeable {
 			}
 		}, "ElevationChannel");
 		thread.start();
+		LOG.log(Level.INFO, "Waiting for helper to exit");
 		while (thread.isAlive()) {
 			try {
 				thread.join(1000);
@@ -183,6 +195,42 @@ public class ElevatedJVM implements Closeable {
 				break;
 			}
 		}
+		LOG.log(Level.INFO, "Helper exited cleanly.");
+	}
+
+	private String fixMacClassDevelopmentPath(String cp, AtomicInteger idx) throws IOException {
+		/* Argh. Work around for Mac OS and it's very restrictive permissions
+		 * system. As an administrator, even we can't read certain files
+		 * (without consent), but consent can never be given. 
+		 * 
+		 * https://eclecticlight.co/2020/02/15/why-privileged-commands-may-never-be-allowed/
+		 * is about the closest to some kind of explanation for this.
+		 */
+		var tmpPath = Paths.get("/tmp/liftlib/" + Integer.toUnsignedLong(hashCode()) + ".tmp");
+		Files.createDirectories(tmpPath);
+		var newPaths = new ArrayList<Path>();
+		for(var cpEl : cp.split(File.pathSeparator)) {
+			var path = Paths.get(cpEl);
+			if(Files.isRegularFile(path) && cpEl.toLowerCase().endsWith(".jar")) {
+				var target = tmpPath.resolve(path.getFileName());
+				Files.copy(path, target, StandardCopyOption.COPY_ATTRIBUTES);
+				removeFilesOnClose.add(target);
+				target.toFile().deleteOnExit();
+				newPaths.add(target);
+			}
+			else if(Files.isDirectory(path)) {
+				var target = tmpPath.resolve("dir" + (idx.getAndIncrement()));
+				Files.createDirectories(target);
+				OS.copy(path, target);
+			}
+			else {
+				newPaths.add(path);
+			}
+		}
+		cp = String.join(File.pathSeparator, newPaths.stream().map(Path::toString).collect(Collectors.toList()));
+		removeFilesOnClose.add(tmpPath);
+		tmpPath.toFile().deleteOnExit();
+		return cp;
 	}
 
 	public boolean isActive() {
@@ -218,6 +266,7 @@ public class ElevatedJVM implements Closeable {
 	@Override
 	public void close() throws IOException {
 		if (!closed) {
+			LOG.info("Closing elevated JVM");
 			closed = true;
 			if (thread != null) {
 				thread.interrupt();

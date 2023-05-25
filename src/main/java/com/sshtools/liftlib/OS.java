@@ -195,7 +195,7 @@ public class OS {
 	public static String getJavaPath() {
 		String javaExe = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
 		if (isWindows()) {
-			if (!Boolean.getBoolean("liftlib.alwaysConsole") && !javaExe.toLowerCase().endsWith("w")) {
+			if (!Boolean.getBoolean("liftlib.alwaysConsole") && !Boolean.getBoolean("liftlib.debug") && !javaExe.toLowerCase().endsWith("w")) {
 				javaExe += "w";
 			}
 			javaExe += ".exe";

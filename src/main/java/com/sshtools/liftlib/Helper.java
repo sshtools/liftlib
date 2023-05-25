@@ -39,7 +39,6 @@ public class Helper implements Callable<Integer> {
 
 	@Override
 	public Integer call() throws Exception {
-
 		var helperPath = System.getProperty("liftlib.socket", System.getenv("LIFTLIB_SOCKET"));
 		if (helperPath == null) {
 			System.setOut(System.err);
@@ -62,8 +61,6 @@ public class Helper implements Callable<Integer> {
 			} catch (EOFException e) {
 			}
 		}
-		
-
 		return 0;
 	}
 
