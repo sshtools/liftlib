@@ -118,7 +118,7 @@ public final class Elevator implements Closeable {
 	}
 
 	@SuppressWarnings("unchecked")
-	public <S extends Serializable> S call(ElevatedClosure<S> closure) throws Exception {
+	public <S extends Serializable, E extends Serializable> S call(ElevatedClosure<S, E> closure) throws Exception {
 		synchronized (lock) {
 			if (jvm != null && lastAuth > 0 && reauthorizationPolicy == ReauthorizationPolicy.INTERVAL
 					&& System.currentTimeMillis() > lastAuth + reauthorizationInterval.toMillis()) {
@@ -134,11 +134,21 @@ public final class Elevator implements Closeable {
 				if(in == null) {
 					in = new ObjectInputStream(jvm.getInputStream());
 				}
-				var ok = in.readBoolean();
-				if (ok)
-					return (S) in.readObject();
-				else
-					throw (Exception) in.readObject();
+				while(true) {
+				    var cmd = in.readInt();
+				    if(cmd == Helper.RESP_COMPLETE) {
+				        var ok = in.readBoolean();
+		                if (ok)
+		                    return (S) in.readObject();
+		                else
+		                    throw (Exception) in.readObject();				        
+				    }
+				    else if(cmd == Helper.RESP_EVENT) {
+				        closure.event((E) in.readObject());
+				    }
+				    else
+				        throw new IOException("Unexpected response command. " + cmd);
+				}
 			} catch (EOFException e) {
 				if (failOnCancel)
 					throw e;

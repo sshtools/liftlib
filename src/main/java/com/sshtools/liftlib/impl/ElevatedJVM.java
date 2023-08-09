@@ -63,91 +63,99 @@ public class ElevatedJVM implements Closeable {
 
 	public ElevatedJVM(PlatformElevation elevation) throws IOException {
 		
-		LOG.info("Creating elevated JVM");
-		
 		this.elevation = elevation;
 
 		var vargs = new ArrayList<String>();
 		var modular = false;
-
-		vargs.add(OS.getJavaPath());
 		
-		if(Boolean.getBoolean("liftlib.debug")) {
-			vargs.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:" + System.getProperty("liftlib.debugPort", "8000"));
-		}
-		var idx = new AtomicInteger(0);
-
-		var mp = System.getProperty("jdk.module.path");
-		if (mp != null && mp.length() > 0) {
-			for(var p : mp.split(File.pathSeparator)) {
-				if(!modular) {
-					var f = Paths.get(p);
-					if(Files.isDirectory(f)) {
-						try(var dstream = Files.newDirectoryStream(f)) {
-							for(var d : dstream) {
-								modular = isLiftLib(d);
-								if(modular) {
-									break;
-								}
-							}
-						}
-					}
-					else {
-						modular = isLiftLib(f);
-						if(modular)
-							break;
-					}
-				}
-			}
-			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
-				mp = fixMacClassDevelopmentPath(mp, idx);
-			}
-			vargs.add("-p");
-			vargs.add(mp);
-		}
-		var cp = System.getProperty("java.class.path");
-
-		if (cp != null && cp.length() > 0) {
-			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
-				cp = fixMacClassDevelopmentPath(cp, idx);
-			}
-			
-			vargs.add("-classpath");
-			vargs.add(cp);
-		}
-
-		socketPath = Files.createTempFile("elv", ".socket");
-		socketPath.toFile().deleteOnExit();
-		socketPath.toFile().setWritable(true, false);
-		socketPath.toFile().setReadable(true, false);
-		Files.deleteIfExists(socketPath);
-		var socketAddress = UnixDomainSocketAddress.of(socketPath);
-
-		var p = new LinkedHashSet<String>();
-		if(!OS.isWindows()) {
-			/* TODO passing on this on Windows prevents execution as there
-			 * is some issue with escaping spaces */
-			p.addAll(Arrays.asList("java.library.path", "jna.library.path", "java.security.policy"));
-		}
-		p.add("file.encoding");
-		for (var s : p) {
-			if (System.getProperty(s) != null) {
-				vargs.add("-D" + s + "=" + System.getProperty(s));
-			}
-		}
-		vargs.add("-Dliftlib.socket=" + socketPath.toString()); // more visible but should always work
-		if(modular) {
-			/* TODO Use ProcessHandler to get the full original command line and process that instead.
-			 *  This means it will have to be able to properly pass all java command arguments 
-			 */
-			vargs.add("--add-modules");
-			vargs.add("ALL-MODULE-PATH");
-			
-			vargs.add("-m");
-			vargs.add("com.sshtools.liftlib/" + Helper.class.getName());
+        socketPath = Files.createTempFile("elv", ".socket");
+        socketPath.toFile().deleteOnExit();
+        socketPath.toFile().setWritable(true, false);
+        socketPath.toFile().setReadable(true, false);
+        Files.deleteIfExists(socketPath);
+        var socketAddress = UnixDomainSocketAddress.of(socketPath);
+		
+		if(OS.isNativeImage()) {
+	        LOG.info("In native image, elevating this executable");
+	        vargs.add(ProcessHandle.current().info().command().get());
+		    vargs.add("--elevate");
+            vargs.add(socketPath.toString());
 		}
 		else {
-			vargs.add(Helper.class.getName());
+            LOG.info("In interpreted mode, starting new elevated JVM");
+
+    		vargs.add(OS.getJavaPath());
+    		
+    		if(Boolean.getBoolean("liftlib.debug")) {
+    			vargs.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:" + System.getProperty("liftlib.debugPort", "8000"));
+    		}
+    		var idx = new AtomicInteger(0);
+    
+    		var mp = System.getProperty("jdk.module.path");
+    		if (mp != null && mp.length() > 0) {
+    			for(var p : mp.split(File.pathSeparator)) {
+    				if(!modular) {
+    					var f = Paths.get(p);
+    					if(Files.isDirectory(f)) {
+    						try(var dstream = Files.newDirectoryStream(f)) {
+    							for(var d : dstream) {
+    								modular = isLiftLib(d);
+    								if(modular) {
+    									break;
+    								}
+    							}
+    						}
+    					}
+    					else {
+    						modular = isLiftLib(f);
+    						if(modular)
+    							break;
+    					}
+    				}
+    			}
+    			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+    				mp = fixMacClassDevelopmentPath(mp, idx);
+    			}
+    			vargs.add("-p");
+    			vargs.add(mp);
+    		}
+    		var cp = System.getProperty("java.class.path");
+    
+    		if (cp != null && cp.length() > 0) {
+    			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+    				cp = fixMacClassDevelopmentPath(cp, idx);
+    			}
+    			
+    			vargs.add("-classpath");
+    			vargs.add(cp);
+    		}
+
+            var p = new LinkedHashSet<String>();
+            if(!OS.isWindows()) {
+                /* TODO passing on this on Windows prevents execution as there
+                 * is some issue with escaping spaces */
+                p.addAll(Arrays.asList("java.library.path", "jna.library.path", "java.security.policy"));
+            }
+            p.add("file.encoding");
+            for (var s : p) {
+                if (System.getProperty(s) != null) {
+                    vargs.add("-D" + s + "=" + System.getProperty(s));
+                }
+            }
+            vargs.add("-Dliftlib.socket=" + socketPath.toString()); // more visible but should always work
+            if(modular) {
+                /* TODO Use ProcessHandler to get the full original command line and process that instead.
+                 *  This means it will have to be able to properly pass all java command arguments 
+                 */
+                vargs.add("--add-modules");
+                vargs.add("ALL-MODULE-PATH");
+                
+                vargs.add("-m");
+                vargs.add("com.sshtools.liftlib/" + Helper.class.getName());
+            }
+            else {
+                vargs.add(Helper.class.getName());
+            }
 		}
 		
 		var serverChannel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
@@ -214,7 +222,7 @@ public class ElevatedJVM implements Closeable {
 
 	private boolean isLiftLib(Path d) {
 		var fn = d.getFileName().toString();
-		if(fn.startsWith("liftlib") && fn.endsWith(".jar")) {
+		if((fn.startsWith("liftlib") && fn.endsWith(".jar") ) || (d.toString().replace('\\', '/').contains("liftlib/target/classes"))) {
 			return true;
 		}
 		return false;

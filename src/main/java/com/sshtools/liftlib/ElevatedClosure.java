@@ -16,9 +16,16 @@
 package com.sshtools.liftlib;
 
 import java.io.Serializable;
-import java.util.concurrent.Callable;
 
 @FunctionalInterface
-public interface ElevatedClosure<S extends Serializable> extends Callable<S>, Serializable {
+public interface ElevatedClosure<S extends Serializable, E extends Serializable> extends Serializable {
 
+    default void event(E event) {
+    }
+    
+    S call(ElevatedClosure<S, E> proxy) throws Exception;
+
+    default S call() throws Exception {
+        return call(this);
+    }
 }

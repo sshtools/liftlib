@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.channels.Channels;
@@ -29,17 +30,25 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
 public class Helper implements Callable<Integer> {
+    
+    public final static int RESP_COMPLETE = 0;
+    public final static int RESP_EVENT = 1;
 
 	public static void main(String[] args) throws Exception {
-		System.exit(new Helper().call());
+		System.exit(new Helper(args).call());
 	}
 
-	public Helper() {
+    private final String[] args;
+
+	private Helper(String... args) {
+	    this.args = args;
 	}
 
 	@Override
 	public Integer call() throws Exception {
 		var helperPath = System.getProperty("liftlib.socket", System.getenv("LIFTLIB_SOCKET"));
+		if(helperPath == null && args.length > 0)
+		    helperPath = args[0];
 		if (helperPath == null) {
 			System.setOut(System.err);
 			System.setIn(InputStream.nullInputStream());
@@ -64,17 +73,39 @@ public class Helper implements Callable<Integer> {
 		return 0;
 	}
 
-	private void cmdLoop(ObjectInputStream in, ObjectOutputStream out) throws IOException, ClassNotFoundException {
+	@SuppressWarnings("serial")
+    private void cmdLoop(ObjectInputStream in, ObjectOutputStream out) throws IOException, ClassNotFoundException {
 		while (true) {
 			@SuppressWarnings("unchecked")
-			var closure = (ElevatedClosure<Serializable>) in.readObject();
+			var closure = (ElevatedClosure<Serializable, Serializable>) in.readObject();
 			if (closure == null)
 				return;
 			try {
-				var result = closure.call();
+			    var lock = new Object();
+				var result = closure.call(new ElevatedClosure<Serializable, Serializable>() {
+                    @Override
+                    public void event(Serializable event) {
+                        synchronized(lock) {
+                            try {
+                                out.writeInt(RESP_EVENT);
+                                out.writeObject(event);
+                            }
+                            catch(IOException ioe) {
+                                throw new UncheckedIOException(ioe);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public Serializable call(ElevatedClosure<Serializable, Serializable> proxy) throws Exception {
+                        throw new UnsupportedOperationException();
+                    }
+                });
+                out.writeInt(RESP_COMPLETE);
 				out.writeBoolean(true);
 				out.writeObject(result);
 			} catch (Throwable t) {
+                out.writeInt(RESP_COMPLETE);
 				out.writeBoolean(false);
 				out.writeObject(t);
 			} finally {

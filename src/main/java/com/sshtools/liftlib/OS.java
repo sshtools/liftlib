@@ -15,6 +15,8 @@
  */
 package com.sshtools.liftlib;
 
+import org.graalvm.nativeimage.ImageInfo;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,6 +33,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class OS {
+            
 	public static class CopyFileVisitor extends SimpleFileVisitor<Path> {
 		private final Path targetPath;
 		private Path sourcePath = null;
@@ -115,8 +118,6 @@ public class OS {
 		NONE
 	}
 
-	public static final String OS_NAME = System.getProperty("os.name");
-
 	private static final Map<String, Boolean> commandCache = new HashMap<>();
 
 	/**
@@ -174,6 +175,15 @@ public class OS {
 			return Desktop.GNOME;
 		}
 		return Desktop.OTHER;
+	}
+	
+	public static boolean isNativeImage() {
+	    try {
+	        return ImageInfo.isExecutable();
+	    }
+	    catch(Throwable t) {
+	        return false;
+	    }
 	}
 
 	/**
@@ -249,24 +259,28 @@ public class OS {
 		throw new UnsupportedOperationException();
 	}
 
+    public static final String osName() {
+        return System.getProperty("os.name"); 
+    }
+
 	public static boolean isAix() {
-		return OS_NAME.toLowerCase().contains("aix");
+		return osName().toLowerCase().contains("aix");
 	}
 
 	public static boolean isBSD() {
-		return OS_NAME.toLowerCase().contains("bsd");
+		return osName().toLowerCase().contains("bsd");
 	}
 
 	public static boolean isLinux() {
-		return OS_NAME.toLowerCase().contains("linux");
+		return osName().toLowerCase().contains("linux");
 	}
 
 	public static boolean isMacOs() {
-		return OS_NAME.toLowerCase().contains("mac os");
+		return osName().toLowerCase().contains("mac os");
 	}
 
 	public static boolean isSolaris() {
-		return OS_NAME.toLowerCase().contains("sunos");
+		return osName().toLowerCase().contains("sunos");
 	}
 
 	public static boolean isUnixLike() {
@@ -274,7 +288,7 @@ public class OS {
 	}
 
 	public static boolean isWindows() {
-		return OS_NAME.toLowerCase().contains("windows");
+		return osName().toLowerCase().contains("windows");
 	}
 
 	public static String expandModulePath(String modulePath) {
@@ -330,7 +344,7 @@ public class OS {
 			return found;
 		}
 		throw new UnsupportedOperationException(
-				OS_NAME + " is not supported. Cannot determine if command " + command + " exists");
+		        osName() + " is not supported. Cannot determine if command " + command + " exists");
 	}
 
 	private static boolean isBlank(String str) {

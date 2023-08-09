@@ -17,4 +17,5 @@ open module com.sshtools.liftlib {
 	exports com.sshtools.liftlib;
 	requires java.desktop;
 	requires java.logging;
+	requires static org.graalvm.sdk;
 }
