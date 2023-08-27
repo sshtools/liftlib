@@ -140,8 +140,16 @@ public final class Elevator implements Closeable {
 				        var ok = in.readBoolean();
 		                if (ok)
 		                    return (S) in.readObject();
-		                else
-		                    throw (Exception) in.readObject();				        
+		                else {
+		                    var t = (Throwable) in.readObject();
+		                    if(t instanceof RuntimeException)
+		                    	throw (RuntimeException)t;
+		                    else if(t instanceof Exception)
+		                    	throw (Exception)t;  
+		                    else
+		                    	throw new Exception(t);
+		                }
+		                
 				    }
 				    else if(cmd == Helper.RESP_EVENT) {
 				        closure.event((E) in.readObject());

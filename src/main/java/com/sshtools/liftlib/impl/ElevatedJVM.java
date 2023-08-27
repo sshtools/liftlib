@@ -264,7 +264,10 @@ public class ElevatedJVM implements Closeable {
 	}
 
 	public boolean isActive() {
-		return process.isAlive();
+		if(OS.isWindows())
+			return !closed;
+		else
+			return process.isAlive();
 	}
 
 	public InputStream getInputStream() {

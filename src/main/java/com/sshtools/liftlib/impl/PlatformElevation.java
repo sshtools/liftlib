@@ -21,13 +21,16 @@ import static com.sshtools.liftlib.OS.hasCommand;
 import static com.sshtools.liftlib.OS.isLinux;
 import static com.sshtools.liftlib.OS.isMacOs;
 import static com.sshtools.liftlib.OS.isWindows;
+import static com.sshtools.liftlib.impl.PlatformElevation.getQuotedCommandString;
 
 import java.io.Console;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -259,6 +262,7 @@ public interface PlatformElevation {
 				cmd.add(2, u);
 			});
 			cmd.add("-command");
+//			cmd.add("-encodedCommand");
 
 			String powerShell;
 			if (args.isEmpty()) {
@@ -269,6 +273,8 @@ public interface PlatformElevation {
 			}
 
 			cmd.add(String.format("&{%s}", powerShell));
+//			cmd.add(Base64.getUrlEncoder().encodeToString(powerShell.getBytes()));
+//			cmd.add(powerShell);
 
 		}
 	}
