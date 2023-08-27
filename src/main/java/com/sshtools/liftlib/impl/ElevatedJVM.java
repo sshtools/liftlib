@@ -117,7 +117,7 @@ public class ElevatedJVM implements Closeable {
     				mp = fixMacClassDevelopmentPath(mp, idx);
     			}
     			vargs.add("-p");
-    			vargs.add(mp);
+    			vargs.add(makePathsAbsolute(mp));
     		}
     		var cp = System.getProperty("java.class.path");
     
@@ -127,7 +127,7 @@ public class ElevatedJVM implements Closeable {
     			}
     			
     			vargs.add("-classpath");
-    			vargs.add(cp);
+    			vargs.add(makePathsAbsolute(cp));
     		}
 
             var p = new LinkedHashSet<String>();
@@ -220,7 +220,19 @@ public class ElevatedJVM implements Closeable {
 		LOG.log(Level.INFO, "Helper exited cleanly.");
 	}
 
-	private boolean isLiftLib(Path d) {
+	private String makePathsAbsolute(String mp) {
+	    var l = new ArrayList<String>();
+	    for(var e : mp.split(File.pathSeparator)) {
+	        var p = Paths.get(e);
+	        if(p.isAbsolute())
+	            l.add(p.toString());
+	        else 
+                l.add(p.toAbsolutePath().toString());
+	    }
+        return String.join(File.pathSeparator, l);
+    }
+
+    private boolean isLiftLib(Path d) {
 		var fn = d.getFileName().toString();
 		if((fn.startsWith("liftlib") && fn.endsWith(".jar") ) || (d.toString().replace('\\', '/').contains("liftlib/target/classes"))) {
 			return true;
