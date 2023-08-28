@@ -176,6 +176,11 @@ public class ElevatedJVM implements Closeable {
 		builder.redirectError(Redirect.INHERIT);
 		builder.redirectOutput(Redirect.INHERIT);
 		builder.redirectInput(Redirect.INHERIT);
+		
+		if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+			var tmpPath = Paths.get("/tmp/liftlib/" + Integer.toUnsignedLong(hashCode()) + ".tmp");
+		    builder.directory(tmpPath.toFile());
+		}
 
 		LOG.log(Level.INFO, "Helper Command: {0}", String.join(" ", builder.command()));
 		elevation.elevate(builder);
@@ -264,6 +269,9 @@ public class ElevatedJVM implements Closeable {
 				var target = tmpPath.resolve("dir" + (idx.getAndIncrement()));
 				Files.createDirectories(target);
 				OS.copy(path, target);
+				removeFilesOnClose.add(target);
+				target.toFile().deleteOnExit();
+				newPaths.add(target);
 			}
 			else {
 				newPaths.add(path);
