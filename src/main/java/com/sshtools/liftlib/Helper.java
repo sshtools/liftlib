@@ -22,11 +22,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
-import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
 import java.nio.channels.Channels;
-import java.nio.channels.SocketChannel;
-import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
 public class Helper implements Callable<Integer> {
@@ -59,10 +55,7 @@ public class Helper implements Callable<Integer> {
 			} catch (EOFException e) {
 			}
 		} else {
-			var socketPath = Path.of(helperPath);
-			var socketAddress = UnixDomainSocketAddress.of(socketPath);
-			var channel = SocketChannel.open(StandardProtocolFamily.UNIX);
-			channel.connect(socketAddress);
+			var channel = RPC.get().connect(helperPath);
 			try (var in = new ObjectInputStream(Channels.newInputStream(channel))) {
 				try (var out = new ObjectOutputStream(Channels.newOutputStream(channel))) {
 					cmdLoop(in, out);

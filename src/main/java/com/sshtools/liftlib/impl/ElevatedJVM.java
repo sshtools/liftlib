@@ -22,10 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ProcessBuilder.Redirect;
-import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
 import java.nio.channels.Channels;
-import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +40,8 @@ import java.util.stream.Collectors;
 
 import com.sshtools.liftlib.Helper;
 import com.sshtools.liftlib.OS;
+import com.sshtools.liftlib.RPC;
+import com.sshtools.liftlib.RPC.Endpoint;
 
 public class ElevatedJVM implements Closeable {
 	
@@ -52,7 +51,7 @@ public class ElevatedJVM implements Closeable {
 	private boolean closed;
 	private final PlatformElevation elevation;
 	private final Semaphore lock = new Semaphore(1);
-	private final Path socketPath;
+	private final Endpoint endpoint;
 	private final List<Path> removeFilesOnClose = new ArrayList<>();
 
 	private SocketChannel channel;
@@ -67,19 +66,15 @@ public class ElevatedJVM implements Closeable {
 
 		var vargs = new ArrayList<String>();
 		var modular = false;
+		var rpc = RPC.get();
 		
-        socketPath = Files.createTempFile("elv", ".socket");
-        socketPath.toFile().deleteOnExit();
-        socketPath.toFile().setWritable(true, false);
-        socketPath.toFile().setReadable(true, false);
-        Files.deleteIfExists(socketPath);
-        var socketAddress = UnixDomainSocketAddress.of(socketPath);
+		endpoint = rpc.endpoint();
 		
 		if(OS.isNativeImage()) {
 	        LOG.info("In native image, elevating this executable");
 	        vargs.add(ProcessHandle.current().info().command().get());
 		    vargs.add("--elevate");
-            vargs.add(socketPath.toString());
+            vargs.add(endpoint.uri());
 		}
 		else {
             LOG.info("In interpreted mode, starting new elevated JVM");
@@ -142,7 +137,7 @@ public class ElevatedJVM implements Closeable {
                     vargs.add("-D" + s + "=" + System.getProperty(s));
                 }
             }
-            vargs.add("-Dliftlib.socket=" + socketPath.toString()); // more visible but should always work
+            vargs.add("-Dliftlib.socket=" + endpoint.uri()); // more visible but should always work
             if(modular) {
                 /* TODO Use ProcessHandler to get the full original command line and process that instead.
                  *  This means it will have to be able to properly pass all java command arguments 
@@ -157,9 +152,6 @@ public class ElevatedJVM implements Closeable {
                 vargs.add(Helper.class.getName());
             }
 		}
-		
-		var serverChannel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
-		serverChannel.bind(socketAddress);
 
 		var builder = new ProcessBuilder(vargs);
 		
@@ -172,7 +164,7 @@ public class ElevatedJVM implements Closeable {
 			builder.environment().put("AWT_FORCE_HEADFUL", "true");
 		}
 		
-		builder.environment().put("LIFTLIB_SOCKET", socketPath.toString()); // likely wont get passed on (e.g pkexec)
+		builder.environment().put("LIFTLIB_SOCKET", endpoint.uri()); // likely wont get passed on (e.g pkexec)
 		builder.redirectError(Redirect.INHERIT);
 		builder.redirectOutput(Redirect.INHERIT);
 		builder.redirectInput(Redirect.INHERIT);
@@ -196,7 +188,7 @@ public class ElevatedJVM implements Closeable {
 		thread = new Thread(() -> {
 			try {
 				LOG.log(Level.INFO, "Waiting for connection from helper");
-				channel = serverChannel.accept();
+				channel = endpoint.accept();
 				LOG.log(Level.INFO, "Got connection from helper");
 				input = Channels.newInputStream(channel);
 				output = Channels.newOutputStream(channel);
@@ -344,7 +336,7 @@ public class ElevatedJVM implements Closeable {
 							}
 							finally {
 								try {
-									Files.delete(socketPath);
+									endpoint.close();
 								}
 								finally {
 									for(var p : removeFilesOnClose) {

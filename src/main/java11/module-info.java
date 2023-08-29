@@ -13,9 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import com.sshtools.liftlib.RPC;
+import com.sshtools.liftlib.impl.TCPRPC;
+
 open module com.sshtools.liftlib {
 	exports com.sshtools.liftlib;
 	requires java.desktop;
 	requires java.logging;
 	requires static org.graalvm.sdk;
+	
+	uses RPC;
+	provides RPC with TCPRPC;
 }
