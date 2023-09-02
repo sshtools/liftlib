@@ -1,8 +1,6 @@
 # LiftLib
 
-![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.sshtools/liftlib/badge.svg)
-[![javadoc](https://javadoc.io/badge2/com.sshtools/liftlib/javadoc.svg)]
-(https://javadoc.io/doc/com.sshtools/liftlib)![JPMS](https://img.shields.io/badge/JPMS-com.sshtools.liftlib-purple) 
+![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.sshtools/liftlib/badge.svg)[![javadoc](https://javadoc.io/badge2/com.sshtools/liftlib/javadoc.svg)](https://javadoc.io/doc/com.sshtools/liftlib)![JPMS](https://img.shields.io/badge/JPMS-com.sshtools.liftlib-purple) 
 
 A small, no dependency Java library whose only job is to create an *Elevated JVM* for running small blocks of Java code as a system administrator. The user will be prompted to accept the elevation.
 
