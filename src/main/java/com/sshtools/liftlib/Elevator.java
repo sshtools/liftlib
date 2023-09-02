@@ -29,9 +29,48 @@ import com.sshtools.liftlib.impl.ElevatedJVM;
 import com.sshtools.liftlib.impl.PlatformElevation;
 
 public final class Elevator implements Closeable {
+	
+	public final static class DefaultElevator {
+		private static Elevator DEFAULT;
+		
+		static {
+			var builder = new Elevator.ElevatorBuilder();
+			builder.withoutFailOnCancel();
+			builder.withReauthorizationPolicy(ReauthorizationPolicy.NEVER);
+			DEFAULT = builder.build();
+		}
+	}
+	
+	public static Elevator elevator() {
+		return DefaultElevator.DEFAULT;
+	}
 
 	public enum ReauthorizationPolicy {
 		EVERY_TIME, NEVER, INTERVAL;
+	}
+	
+	public static interface Run extends ElevatedClosure<Serializable, Serializable> {
+
+		@Override
+		default Serializable call(ElevatedClosure<Serializable, Serializable> proxy) throws Exception {
+			run();
+			return null;
+		}
+		
+		void run() throws Exception;
+		
+		
+	}
+	
+	public static interface Call<RET extends Serializable> extends ElevatedClosure<RET, Serializable> {
+
+		@Override
+		default RET call(ElevatedClosure<RET, Serializable> proxy) throws Exception {
+			return call();
+		}
+		
+		RET call() throws Exception;
+		
 	}
 
 	public final static class ElevatorBuilder {
@@ -116,9 +155,17 @@ public final class Elevator implements Closeable {
 		this.username = builder.username;
 		this.password = builder.password;
 	}
+	
+	public void run(Run closure) throws Exception {
+		closure(closure);
+	}
+	
+	public <RET extends Serializable> RET call(Call<RET> closure) throws Exception {
+		return closure(closure);
+	}
 
 	@SuppressWarnings("unchecked")
-	public <S extends Serializable, E extends Serializable> S call(ElevatedClosure<S, E> closure) throws Exception {
+	public <S extends Serializable, E extends Serializable> S closure(ElevatedClosure<S, E> closure) throws Exception {
 		synchronized (lock) {
 			if (jvm != null && lastAuth > 0 && reauthorizationPolicy == ReauthorizationPolicy.INTERVAL
 					&& System.currentTimeMillis() > lastAuth + reauthorizationInterval.toMillis()) {
