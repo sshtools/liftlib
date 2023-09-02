@@ -1,6 +1,6 @@
 # LiftLib
 
-![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.sshtools/jini/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.sshtools/jini)
+![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.sshtools/jini/badge.svg)]
 [![javadoc](https://javadoc.io/badge2/com.sshtools/jini/javadoc.svg)](https://javadoc.io/doc/com.sshtools/jini)
 ![JPMS](https://img.shields.io/badge/JPMS-com.sshtools.jini-purple)
 
