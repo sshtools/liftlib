@@ -179,9 +179,18 @@ public class OS {
 		return Desktop.OTHER;
 	}
 	
+	public static boolean isSharedLibrary() {
+	    try {
+	        return ImageInfo.isSharedLibrary();
+	    }
+	    catch(Throwable t) {
+	        return false;
+	    }
+	}
+	
 	public static boolean isNativeImage() {
 	    try {
-	        return ImageInfo.isExecutable() || ImageInfo.isSharedLibrary();
+	        return System.getProperty("java.home") == null || ImageInfo.isExecutable() || ImageInfo.isSharedLibrary();
 	    }
 	    catch(Throwable t) {
 	        return false;

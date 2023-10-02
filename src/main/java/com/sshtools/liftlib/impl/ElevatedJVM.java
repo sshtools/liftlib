@@ -70,7 +70,10 @@ public class ElevatedJVM implements Closeable {
 		
 		endpoint = rpc.endpoint();
 		
-		if(OS.isNativeImage()) {
+		if(OS.isSharedLibrary()) {
+			throw new IOException("Elevation is not supported in shared libraries, the calling application must be run as administrator or perform its own elevation.");
+		}
+		else if(OS.isNativeImage()) {
 	        LOG.info("In native image, elevating this executable");
 	        vargs.add(ProcessHandle.current().info().command().get());
 		    vargs.add("--elevate");
