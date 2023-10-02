@@ -21,6 +21,8 @@ import java.net.SocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.ServiceLoader;
 
+import com.sshtools.liftlib.impl.TCPRPC;
+
 public interface RPC {
 	
 	public interface Endpoint extends Closeable {
@@ -32,7 +34,7 @@ public interface RPC {
 	}
 	
 	public static RPC get() {
-		return ServiceLoader.load(RPC.class).stream().map(f -> f.get()).findFirst().orElseThrow(() -> new IllegalStateException("No RPC providers."));
+		return ServiceLoader.load(RPC.class).stream().map(f -> f.get()).findFirst().orElseGet(() -> new TCPRPC());
 	}
 
 	Endpoint endpoint() throws IOException;

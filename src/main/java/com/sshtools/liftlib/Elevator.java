@@ -15,7 +15,6 @@
  */
 package com.sshtools.liftlib;
 
-import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -28,7 +27,7 @@ import java.util.Optional;
 import com.sshtools.liftlib.impl.ElevatedJVM;
 import com.sshtools.liftlib.impl.PlatformElevation;
 
-public final class Elevator implements Closeable {
+public final class Elevator {
 	
 	public final static class DefaultElevator {
 		private static Elevator DEFAULT;
@@ -72,7 +71,7 @@ public final class Elevator implements Closeable {
 		RET call() throws Exception;
 		
 	}
-
+	
 	public final static class ElevatorBuilder {
 
 		private boolean failOnCancel = true;
@@ -160,8 +159,28 @@ public final class Elevator implements Closeable {
 		closure(closure);
 	}
 	
+	public void runUnchecked(Run closure) {
+		try {
+			closure(closure);
+		} catch(RuntimeException re) {
+			throw re;
+		}  catch (Exception e) {
+			throw new IllegalStateException("Failed to execute elevated closure.", e);
+		}
+	}
+	
 	public <RET extends Serializable> RET call(Call<RET> closure) throws Exception {
 		return closure(closure);
+	}
+	
+	public <RET extends Serializable> RET callUnchecked(Call<RET> closure)  {
+		try {
+			return closure(closure);
+		}catch(RuntimeException re) {
+			throw re;
+		}  catch (Exception e) {
+			throw new IllegalStateException("Failed to execute elevated closure.", e);
+		}
 	}
 
 	@SuppressWarnings("unchecked")
@@ -228,7 +247,6 @@ public final class Elevator implements Closeable {
 		}
 	}
 
-	@Override
 	public void close() {
 		if(jvm != null)
 			try {

@@ -181,7 +181,7 @@ public class OS {
 	
 	public static boolean isNativeImage() {
 	    try {
-	        return ImageInfo.isExecutable();
+	        return ImageInfo.isExecutable() || ImageInfo.isSharedLibrary();
 	    }
 	    catch(Throwable t) {
 	        return false;
