@@ -21,13 +21,18 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.text.MessageFormat;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.sshtools.liftlib.impl.ElevatedJVM;
 import com.sshtools.liftlib.impl.PlatformElevation;
 
 public final class Elevator {
+
+	static Logger LOG;
 	
 	public final static class DefaultElevator {
 		private static Elevator DEFAULT;
@@ -148,6 +153,9 @@ public final class Elevator {
 	private ObjectInputStream in;
 
 	Elevator(ElevatorBuilder builder) {
+		if(LOG == null) {
+			LOG = Logger.getLogger(Elevator.class.getSimpleName());
+		}
 		this.failOnCancel = builder.failOnCancel;
 		this.reauthorizationPolicy = builder.reauthorizationPolicy;
 		this.reauthorizationInterval = builder.reauthorizationInterval;
@@ -188,26 +196,62 @@ public final class Elevator {
 		synchronized (lock) {
 			if (jvm != null && lastAuth > 0 && reauthorizationPolicy == ReauthorizationPolicy.INTERVAL
 					&& System.currentTimeMillis() > lastAuth + reauthorizationInterval.toMillis()) {
+				if(LOG.isLoggable(Level.FINE))
+					LOG.fine("Elevator JVM timed-out");
 				closeJvm();
 			}
 			try {
 				if (jvm == null || !jvm.isActive()) {
+					if(LOG.isLoggable(Level.FINE))
+						LOG.fine("Creating new elevator JVM");
 					jvm = new ElevatedJVM(PlatformElevation.forEnvironment(username, password));
 					out = new ObjectOutputStream(jvm.getOutputStream());
 				}
-				out.writeObject(closure);
+				if(LOG.isLoggable(Level.FINE))
+					LOG.fine("Sending closure");
+				out.writeObject(closure);				
 				out.flush();
+				if(LOG.isLoggable(Level.FINE))
+					LOG.fine("Sent closure");
 				if(in == null) {
 					in = new ObjectInputStream(jvm.getInputStream());
+					if(LOG.isLoggable(Level.FINE))
+						LOG.fine("Opened new input stream");
 				}
 				while(true) {
+				    
+					if(LOG.isLoggable(Level.FINE))
+						LOG.fine("Awating command");
+					
 				    var cmd = in.readInt();
+				    
+					if(LOG.isLoggable(Level.FINE))
+						LOG.fine(MessageFormat.format("Got command {0}", cmd));
+					
 				    if(cmd == Helper.RESP_COMPLETE) {
+					    
+						if(LOG.isLoggable(Level.FINE))
+							LOG.fine("Completed command");
+						
 				        var ok = in.readBoolean();
-		                if (ok)
-		                    return (S) in.readObject();
+		                if (ok) {
+							if(LOG.isLoggable(Level.FINE))
+								LOG.fine("Received OK, waiting for return object.");
+		                    var res = (S) in.readObject();
+
+					        if(LOG.isLoggable(Level.FINE))
+								LOG.fine(MessageFormat.format("Response object: {0}", String.valueOf(res)));
+					        
+							return res;
+		                }
 		                else {
+							if(LOG.isLoggable(Level.FINE))
+								LOG.fine("Received ERR, waiting for exception.");
+							
 		                    var t = (Throwable) in.readObject();
+		                    if(LOG.isLoggable(Level.FINE))
+								LOG.fine(MessageFormat.format("Exception object: {0}", String.valueOf(t)));
+		                    
 		                    if(t instanceof RuntimeException)
 		                    	throw (RuntimeException)t;
 		                    else if(t instanceof Exception)
@@ -218,7 +262,16 @@ public final class Elevator {
 		                
 				    }
 				    else if(cmd == Helper.RESP_EVENT) {
-				        closure.event((E) in.readObject());
+					    
+						if(LOG.isLoggable(Level.FINE))
+							LOG.fine("Event command");
+						
+				        E evt = (E) in.readObject();
+				        
+				        if(LOG.isLoggable(Level.FINE))
+							LOG.fine(MessageFormat.format("Event object: {0}", String.valueOf(evt)));
+				        
+						closure.event(evt);
 				    }
 				    else
 				        throw new IOException("Unexpected response command. " + cmd);
@@ -239,8 +292,14 @@ public final class Elevator {
 
 	private void closeJvm() throws IOException {
 		try {
+			if(LOG.isLoggable(Level.FINE))
+				LOG.fine("Closing Elevator JVM");
+			
 			jvm.close();
 		} finally {
+			if(LOG.isLoggable(Level.FINE))
+				LOG.fine("Closed Elevator JVM");
+			
 			jvm = null;
 			in = null;
 			out = null;
