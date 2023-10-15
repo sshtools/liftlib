@@ -33,7 +33,7 @@ Hello World to joeb from root
  * Creates an optionally re-usable elevated helper to run blocks of code as an administrator or other elevated user.
  * Works with GUI or Console applications.
  * Works with Graal Native Image (in fact works best).
- * Works with Java 11 or above.
+ * Works with Java 17 or above.
  * No JNI, JNA or other FFI, just uses already available operating system commands.
  * Re-authorization timeout for re-usable helpers. After a certain amount of time, elevated actions must be re-authorized.
  * Elevated tasks block while they are running, and accept an input object and return an output object. While running, the elevated code may send back events to the non-elevated code (the reverse is not currently possible).

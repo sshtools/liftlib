@@ -16,6 +16,7 @@
 
 import com.sshtools.liftlib.RPC;
 import com.sshtools.liftlib.impl.TCPRPC;
+import com.sshtools.liftlib.impl.UDSRPC;
 
 open module com.sshtools.liftlib {
 	exports com.sshtools.liftlib;
@@ -24,5 +25,5 @@ open module com.sshtools.liftlib {
 	requires static org.graalvm.sdk;
 	
 	uses RPC;
-	provides RPC with TCPRPC;
+	provides RPC with UDSRPC, TCPRPC;
 }
