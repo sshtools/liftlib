@@ -32,7 +32,7 @@ import com.sshtools.liftlib.impl.PlatformElevation;
 
 public final class Elevator {
 
-	static Logger LOG;
+	private final static Logger LOG = Logger.getLogger(Elevator.class.getSimpleName());
 	
 	public final static class DefaultElevator {
 		private static Elevator DEFAULT;
@@ -153,9 +153,6 @@ public final class Elevator {
 	private ObjectInputStream in;
 
 	Elevator(ElevatorBuilder builder) {
-		if(LOG == null) {
-			LOG = Logger.getLogger(Elevator.class.getSimpleName());
-		}
 		this.failOnCancel = builder.failOnCancel;
 		this.reauthorizationPolicy = builder.reauthorizationPolicy;
 		this.reauthorizationInterval = builder.reauthorizationInterval;
