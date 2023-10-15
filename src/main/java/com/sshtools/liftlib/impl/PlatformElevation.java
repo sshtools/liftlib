@@ -265,11 +265,21 @@ public interface PlatformElevation {
 //			cmd.add("-encodedCommand");
 
 			String powerShell;
-			if (args.isEmpty()) {
-				powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
-			} else {
-				powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs",
-						exe, String.join(",", args));
+			if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+				if (args.isEmpty()) {
+					powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
+				} else {
+					powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs",
+							exe, String.join(",", args));
+				}
+			}
+			else {
+				if (args.isEmpty()) {
+					powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
+				} else {
+					powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs",
+							exe, String.join(",", args));
+				}
 			}
 
 			cmd.add(String.format("&{%s}", powerShell));
