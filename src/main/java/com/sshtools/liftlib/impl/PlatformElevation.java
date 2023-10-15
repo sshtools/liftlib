@@ -21,18 +21,20 @@ import static com.sshtools.liftlib.OS.hasCommand;
 import static com.sshtools.liftlib.OS.isLinux;
 import static com.sshtools.liftlib.OS.isMacOs;
 import static com.sshtools.liftlib.OS.isWindows;
-import static com.sshtools.liftlib.impl.PlatformElevation.getQuotedCommandString;
 
-import java.io.Console;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.nio.charset.Charset;
+import java.lang.ProcessBuilder.Redirect;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import com.sshtools.liftlib.OS.Desktop;
@@ -40,6 +42,7 @@ import com.sshtools.liftlib.ui.AskPass;
 import com.sshtools.liftlib.ui.AskPassConsole;
 
 public interface PlatformElevation {
+	final static Logger LOG = Logger.getLogger(PlatformElevation.class.getSimpleName());
 
 	static PlatformElevation forEnvironment(Optional<String> username, Optional<char[]> password) {
 		if (isLinux()) {
@@ -54,14 +57,14 @@ public interface PlatformElevation {
 						return new SudoAskPassGuiUser(username);
 					}
 				} else if (dt == Desktop.CONSOLE) {
-					Console console = System.console();
-					if (hasCommand("sudo") && console == null)
-						return new SudoAskPassUser(username);
-					else {
+//					Console console = System.console();
+//					if (hasCommand("sudo") && console == null)
+//						return new SudoAskPassUser(username);
+//					else {
 						if (hasCommand("sudo") || hasCommand("su")) {
-							return new SUAdministrator();
+							return new SUAdministrator(username);
 						}
-					}
+//					}
 				} else {
 					// Unknown desktop
 					return new SudoAskPassGuiUser(username);
@@ -87,7 +90,9 @@ public interface PlatformElevation {
 
 	}
 
-	void lower();
+	default void lower() {
+		
+	}
 
 	void elevate(ProcessBuilder builder);
 
@@ -162,6 +167,7 @@ public interface PlatformElevation {
 	public static class SudoFixedPasswordUser extends AbstractProcessBuilderEffectiveUser implements PlatformElevation {
 		private char[] password;
 		private String username;
+		private String stty;
 
 		SudoFixedPasswordUser(char[] password) {
 			this(null, password);
@@ -173,11 +179,13 @@ public interface PlatformElevation {
 		}
 
 		@Override
-		public void lower() {
+		public void ready() {
+			restoreStty(stty);
 		}
 
 		@Override
 		public void elevate(ProcessBuilder builder) {
+			stty = saveStty();
 			createTempScript("echo '" + new String(password).replace("'", "\\'") + "'");
 			var cmd = builder.command();
 			cmd.add(0, "sudo");
@@ -198,10 +206,6 @@ public interface PlatformElevation {
 		}
 
 		@Override
-		public void lower() {
-		}
-
-		@Override
 		public void elevate(ProcessBuilder builder) {
 			var cmd = builder.command();
 			cmd.add(0, "pkexec");
@@ -216,10 +220,6 @@ public interface PlatformElevation {
 			implements PlatformElevation {
 
 		private OsaScriptAsAdministrator() {
-		}
-
-		@Override
-		public void lower() {
 		}
 
 		@Override
@@ -240,10 +240,6 @@ public interface PlatformElevation {
 
 		private RunAsUser(Optional<String> username) {
 			this.username = username;
-		}
-
-		@Override
-		public void lower() {
 		}
 
 		@Override
@@ -297,6 +293,7 @@ public interface PlatformElevation {
 	 */
 	public static class SudoAskPassGuiUser extends AbstractProcessBuilderEffectiveUser implements PlatformElevation {
 		private Optional<String> username;
+		private String stty;
 
 		/**
 		 * Constructor for specific user
@@ -308,11 +305,13 @@ public interface PlatformElevation {
 		}
 
 		@Override
-		public void lower() {
+		public void ready() {
+			restoreStty(stty);
 		}
 
 		@Override
 		public void elevate(ProcessBuilder builder) {
+			stty = saveStty();
 			createTempScript(javaAskPassScript(AskPass.class));
 			var cmd = builder.command();
 			cmd.add(0, "sudo");
@@ -328,17 +327,20 @@ public interface PlatformElevation {
 
 	public static class SudoAskPassUser extends AbstractProcessBuilderEffectiveUser implements PlatformElevation {
 		private Optional<String> username;
+		private String stty;
 
 		SudoAskPassUser(Optional<String> username) {
 			this.username = username;
 		}
 
 		@Override
-		public void lower() {
+		public void ready() {
+			restoreStty(stty);
 		}
 
 		@Override
 		public void elevate(ProcessBuilder builder) {
+			stty = saveStty();
 			createTempScript(javaAskPassScript(AskPassConsole.class));
 			var cmd = builder.command();
 			cmd.add(0, "sudo");
@@ -358,13 +360,22 @@ public interface PlatformElevation {
 	 *
 	 */
 	public static class SUAdministrator extends AbstractProcessBuilderEffectiveUser implements PlatformElevation {
+		
+		private Optional<String> username;
+		private String stty;
+
+		public SUAdministrator(Optional<String> username) {
+			this.username = username;
+		}
 
 		@Override
-		public void lower() {
+		public void ready() {
+			restoreStty(stty);
 		}
 
 		@Override
 		public void elevate(ProcessBuilder builder) {
+			stty = saveStty();
 			if (hasCommand("sudo")) {
 				/*
 				 * This is the only thing we can do to determine if to use sudo or not.
@@ -372,6 +383,11 @@ public interface PlatformElevation {
 				 * which might be a hint. Neither could /etc/sudoers
 				 */
 				builder.command().add(0, "sudo");
+				builder.command().add(1, "-E");
+				username.ifPresent(u -> {
+					builder.command().add(2, "-u");
+					builder.command().add(3, u);
+				});
 			} else {
 				if (System.console() == null)
 					throw new IllegalStateException("This program requires elevated privileges, "
@@ -383,6 +399,41 @@ public interface PlatformElevation {
 				cmd.add("su");
 				cmd.add("-c");
 				cmd.add(bui.toString());
+			}
+		}
+	}
+	
+	static String saveStty() {
+		var pb = new ProcessBuilder("stty", "-g");
+		pb.redirectInput(Redirect.INHERIT);
+		pb.redirectError(Redirect.DISCARD);
+		try {
+			var p = pb.start();
+			try(var rdr = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+				return rdr.readLine();
+			}
+		}
+		catch(Exception e) {
+			LOG.log(Level.SEVERE, "Failed to save stty settings. Output may be messed up.", e);
+		}
+		return null;
+	}
+	
+	static void restoreStty(String stty) {
+		if(stty != null) {
+			var pb = new ProcessBuilder("stty", stty);
+			pb.redirectInput(Redirect.INHERIT);
+			pb.redirectOutput(Redirect.INHERIT);
+			pb.redirectError(Redirect.INHERIT);
+			try {
+				var p = pb.start();
+				if(p.waitFor() != 0) {
+					throw new IOException("Non-zero exist status.");
+				}
+				return;
+			}
+			catch(Exception e) {
+				LOG.log(Level.SEVERE, "Failed to restore stty settings. Output may be messed up.", e);
 			}
 		}
 	}
@@ -409,5 +460,8 @@ public interface PlatformElevation {
 
 	static String escapeSingleQuotes(String src) {
 		return src.replace("'", "''");
+	}
+
+	default void ready() {
 	}
 }

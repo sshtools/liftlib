@@ -143,7 +143,14 @@ public class OS {
 		// http://unix.stackexchange.com/questions/116539/how-to-detect-the-desktop-environment-in-a-bash-script
 		// http://askubuntu.com/questions/72549/how-to-determine-which-window-manager-is-running/227669#227669
 
-		String desktopSession = System.getenv("XDG_CURRENT_DESKTOP");
+		/* NOTE: This variable is to aid debugging. How Eclipse deals with environment
+		 * variables in launchers is fucking stupid. Why can't you override a single
+		 * existing variable? Append adds a 2nd XDG_CURRENT_DESKTOP, Replace wipes out all
+		 * except anything specifically tested. It's nearly useless!
+		 */
+		String desktopSession = System.getenv("OVERRIDE_CURRENT_DESKTOP");
+		if(desktopSession == null)
+			desktopSession  = System.getenv("XDG_CURRENT_DESKTOP");
 		String gdmSession = System.getenv("GDMSESSION");
 		if (isWindows()) {
 			return Desktop.WINDOWS;
@@ -151,7 +158,9 @@ public class OS {
 		if (isMacOs()) {
 			return Desktop.MAC_OSX;
 		}
-		if (isLinux() && isBlank(System.getenv("DISPLAY"))) {
+		if ("_CONSOLE_".equals(desktopSession) ||
+			( isLinux() && isBlank(System.getenv("DISPLAY"))) ||  
+			( isMacOs() && isBlank(System.getenv("XPC_FLAGS")))) {
 			return Desktop.CONSOLE;
 		}
 

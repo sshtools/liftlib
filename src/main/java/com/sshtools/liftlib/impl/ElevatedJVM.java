@@ -144,6 +144,8 @@ public class ElevatedJVM implements Closeable {
             if(modular) {
                 /* TODO Use ProcessHandler to get the full original command line and process that instead.
                  *  This means it will have to be able to properly pass all java command arguments 
+                 *  
+                 *  NOTE: ProcessHandle doesnt work properly on Windows and never has!
                  */
                 vargs.add("--add-modules");
                 vargs.add("ALL-MODULE-PATH");
@@ -177,7 +179,7 @@ public class ElevatedJVM implements Closeable {
 		    builder.directory(tmpPath.toFile());
 		}
 
-		LOG.log(Level.INFO, "Helper Command: {0}", String.join(" ", builder.command()));
+		LOG.log(Level.INFO, "Helper Command: {0}, Elevator: {1}", new Object[] { String.join(" ", builder.command()), elevation.getClass().getName() });
 		elevation.elevate(builder);
 
 		LOG.log(Level.INFO, "Elevator Command: {0}", String.join(" ", builder.command()));
@@ -217,6 +219,7 @@ public class ElevatedJVM implements Closeable {
 				break;
 			}
 		}
+		elevation.ready();
 		LOG.log(Level.INFO, "Helper exited cleanly.");
 	}
 
