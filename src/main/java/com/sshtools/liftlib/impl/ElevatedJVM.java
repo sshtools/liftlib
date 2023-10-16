@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import com.sshtools.liftlib.Helper;
 import com.sshtools.liftlib.OS;
+import com.sshtools.liftlib.OS.Desktop;
 import com.sshtools.liftlib.RPC;
 import com.sshtools.liftlib.RPC.Endpoint;
 
@@ -67,20 +68,23 @@ public class ElevatedJVM implements Closeable {
 		var vargs = new ArrayList<String>();
 		var modular = false;
 		var rpc = RPC.get();
+		var nativeImage = OS.isNativeImage();
+		var macDev = !nativeImage && OS.isMacOs() && Files.exists(Paths.get("pom.xml"));
+		var sharedLibrary = OS.isSharedLibrary();
 		
 		endpoint = rpc.endpoint();
 		
-		if(OS.isSharedLibrary()) {
+		if(sharedLibrary) {
 			throw new IOException("Elevation is not supported in shared libraries, the calling application must be run as administrator or perform its own elevation.");
 		}
-		else if(OS.isNativeImage()) {
+		else if(nativeImage) {
 	        LOG.info("In native image, elevating this executable");
-	        vargs.add(ProcessHandle.current().info().command().get());
+	        vargs.add(Paths.get(ProcessHandle.current().info().command().get()).toAbsolutePath().toString());
 		    vargs.add("--elevate");
             vargs.add(endpoint.uri());
 		}
 		else {
-            LOG.info("In interpreted mode, starting new elevated JVM");
+			LOG.info("In interpreted mode, starting new elevated JVM");
 
     		vargs.add(OS.getJavaPath());
     		
@@ -111,7 +115,7 @@ public class ElevatedJVM implements Closeable {
     					}
     				}
     			}
-    			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+    			if(macDev) {
     				mp = fixMacClassDevelopmentPath(mp, idx);
     			}
     			vargs.add("-p");
@@ -120,7 +124,7 @@ public class ElevatedJVM implements Closeable {
     		var cp = System.getProperty("java.class.path");
     
     		if (cp != null && cp.length() > 0) {
-    			if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+    			if(macDev) {
     				cp = fixMacClassDevelopmentPath(cp, idx);
     			}
     			
@@ -160,7 +164,7 @@ public class ElevatedJVM implements Closeable {
 
 		var builder = new ProcessBuilder(vargs);
 		
-		if(OS.isMacOs()) {
+		if(OS.isMacOs() && !OS.getDesktopEnvironment().equals(Desktop.CONSOLE)) {
 			/* Another Mac OS X hack. If you try to run GUI applications in the 
 			 * elevated helper, it doesn't detect the Aqua session. We don't actually
 			 * need this for the helper, only anything spawned from it (e.g. an uninstaller / updater
@@ -174,7 +178,7 @@ public class ElevatedJVM implements Closeable {
 		builder.redirectOutput(Redirect.INHERIT);
 		builder.redirectInput(Redirect.INHERIT);
 		
-		if(OS.isMacOs() && Files.exists(Paths.get("pom.xml"))) {
+		if(macDev) {
 			var tmpPath = Paths.get("/tmp/liftlib/" + Integer.toUnsignedLong(hashCode()) + ".tmp");
 		    builder.directory(tmpPath.toFile());
 		}

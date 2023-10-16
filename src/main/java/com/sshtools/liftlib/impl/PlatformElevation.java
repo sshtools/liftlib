@@ -37,6 +37,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import com.sshtools.liftlib.OS;
 import com.sshtools.liftlib.OS.Desktop;
 import com.sshtools.liftlib.ui.AskPass;
 import com.sshtools.liftlib.ui.AskPassConsole;
@@ -71,11 +72,15 @@ public interface PlatformElevation {
 				}
 			}
 		} else if (isMacOs()) {
-			if (username.isPresent() || !hasCommand("osascript")) {
+			var dt = OS.getDesktopEnvironment();
+			if (username.isPresent() || !hasCommand("osascript") || dt.equals(Desktop.CONSOLE)) {
 				if (password.isPresent()) {
 					return new SudoFixedPasswordUser(password.get());
 				} else if (hasCommand("sudo")) {
-					return new SudoAskPassGuiUser(username);
+					if(dt.equals(Desktop.CONSOLE))
+						return new SUAdministrator(username);
+					else
+						return new SudoAskPassGuiUser(username);
 				}
 			} else {
 				return new OsaScriptAsAdministrator();
@@ -229,7 +234,7 @@ public interface PlatformElevation {
 			var bui = getQuotedCommandString(cmd);
 
 			cmd.clear();
-			cmd.add("osascript");
+			cmd.add("/usr/bin/osascript");
 			cmd.add("-e");
 			cmd.add(String.format("do shell script \"%s\" with administrator privileges", bui.toString()));
 		}

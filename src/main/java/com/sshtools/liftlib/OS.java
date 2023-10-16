@@ -155,13 +155,13 @@ public class OS {
 		if (isWindows()) {
 			return Desktop.WINDOWS;
 		}
-		if (isMacOs()) {
-			return Desktop.MAC_OSX;
-		}
 		if ("_CONSOLE_".equals(desktopSession) ||
 			( isLinux() && isBlank(System.getenv("DISPLAY"))) ||  
 			( isMacOs() && isBlank(System.getenv("XPC_FLAGS")))) {
 			return Desktop.CONSOLE;
+		}
+		if (isMacOs()) {
+			return Desktop.MAC_OSX;
 		}
 
 		if ("X-Cinnamon".equalsIgnoreCase(desktopSession)) {
