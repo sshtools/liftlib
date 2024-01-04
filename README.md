@@ -223,7 +223,7 @@ in the format `--elevate=<uri>`, where URI will either be an integer number or a
 ```java
 public static void main(String[] args) {
     if(args.length == 1 && args[0].startsWith("--elevate=")) {
-        com.sshtools.liftlib.Helper.main(args[0].substring(10));
+        com.sshtools.liftlib.Helper.main(new String[] { args[0].substring(10) });
     }
     else {    
         // Do your normal command line processing / bootstrapping 

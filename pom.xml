@@ -21,13 +21,14 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.sshtools</groupId>
 	<artifactId>liftlib</artifactId>
-	<version>0.9.5</version>
+	<version>0.9.6</version>
 	<name>LiftLib</name>
 	<properties>
 		<maven.compiler.target>17</maven.compiler.target>
 		<maven.compiler.source>17</maven.compiler.source>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <native.image.annotations.version>0.9.1-SNAPSHOT</native.image.annotations.version>
 	</properties>
 	<url>https://github.com/sshtools/liftlib</url>
 	<developers>
@@ -44,6 +45,12 @@
 			<optional>true</optional>
 			<scope>provided</scope>
 		</dependency>
+        <dependency>
+            <groupId>uk.co.bithatch</groupId>
+            <artifactId>native-image-annotations</artifactId>
+            <version>${native.image.annotations.version}</version>
+            <scope>provided</scope>
+        </dependency>
 	</dependencies>
 	<organization>
 		<name>JAdaptive</name>
@@ -76,6 +83,22 @@
 	<build>
 
 		<plugins>
+			<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>uk.co.bithatch</groupId>
+                            <artifactId>native-image-annotations</artifactId>
+                            <version>${native.image.annotations.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-Aproject=${project.groupId}/${project.artifactId}</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>

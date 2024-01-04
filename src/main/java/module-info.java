@@ -23,6 +23,7 @@ open module com.sshtools.liftlib {
 	requires java.desktop;
 	requires java.logging;
 	requires static org.graalvm.sdk;
+    requires static uk.co.bithatch.nativeimage.annotations;
 	
 	uses RPC;
 	provides RPC with UDSRPC, TCPRPC;
