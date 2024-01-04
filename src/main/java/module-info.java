@@ -20,6 +20,7 @@ import com.sshtools.liftlib.impl.UDSRPC;
 
 open module com.sshtools.liftlib {
 	exports com.sshtools.liftlib;
+	exports com.sshtools.liftlib.commands;
 	requires java.desktop;
 	requires java.logging;
 	requires static org.graalvm.sdk;
