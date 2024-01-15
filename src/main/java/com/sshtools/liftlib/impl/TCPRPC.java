@@ -67,4 +67,9 @@ public class TCPRPC implements RPC {
 
 		};
 	}
+
+	@Override
+	public int weight() {
+		return 20;
+	}
 }

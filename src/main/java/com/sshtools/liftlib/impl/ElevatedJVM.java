@@ -29,11 +29,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -43,6 +45,7 @@ import com.sshtools.liftlib.OS;
 import com.sshtools.liftlib.OS.Desktop;
 import com.sshtools.liftlib.RPC;
 import com.sshtools.liftlib.RPC.Endpoint;
+import com.sshtools.liftlib.RuntimePathProvider;
 
 public class ElevatedJVM implements Closeable {
 	
@@ -61,15 +64,15 @@ public class ElevatedJVM implements Closeable {
 	private boolean ready;
 	private Thread thread;;
 
-	public ElevatedJVM(PlatformElevation elevation) throws IOException {
+	public ElevatedJVM(PlatformElevation elevation, boolean dev, List<RuntimePathProvider> pathProviders, Supplier<RPC> rpcSupplier) throws IOException {
 		
 		this.elevation = elevation;
 
 		var vargs = new ArrayList<String>();
 		var modular = false;
-		var rpc = RPC.get();
+		var rpc = rpcSupplier.get();
 		var nativeImage = OS.isNativeImage();
-		var macDev = !nativeImage && OS.isMacOs() && Files.exists(Paths.get("pom.xml"));
+		var macDev = !nativeImage && OS.isMacOs() && dev;
 		var sharedLibrary = OS.isSharedLibrary();
 		
 		endpoint = rpc.endpoint();
@@ -93,9 +96,16 @@ public class ElevatedJVM implements Closeable {
     		}
     		var idx = new AtomicInteger(0);
     
-    		var mp = System.getProperty("jdk.module.path");
-    		if (mp != null && mp.length() > 0) {
-    			for(var p : mp.split(File.pathSeparator)) {
+    		Set<String> mp = new LinkedHashSet<String>();
+    		Set<String> cp = new LinkedHashSet<String>();
+    		var sp = new Properties();
+    		for(var prov : pathProviders) {
+    			prov.fill(cp, mp, sp);
+    		}
+    		
+    		
+    		if (!mp.isEmpty()) {
+    			for(var p : mp) {
     				if(!modular) {
     					var f = Paths.get(p);
     					if(Files.isDirectory(f)) {
@@ -121,9 +131,8 @@ public class ElevatedJVM implements Closeable {
     			vargs.add("-p");
     			vargs.add(makePathsAbsolute(mp));
     		}
-    		var cp = System.getProperty("java.class.path");
     
-    		if (cp != null && cp.length() > 0) {
+    		if (!cp.isEmpty()) {
     			if(macDev) {
     				cp = fixMacClassDevelopmentPath(cp, idx);
     			}
@@ -132,18 +141,11 @@ public class ElevatedJVM implements Closeable {
     			vargs.add(makePathsAbsolute(cp));
     		}
 
-            var p = new LinkedHashSet<String>();
-            if(!OS.isWindows()) {
-                /* TODO passing on this on Windows prevents execution as there
-                 * is some issue with escaping spaces */
-                p.addAll(Arrays.asList("java.library.path", "jna.library.path", "java.security.policy"));
-            }
-            p.add("file.encoding");
-            for (var s : p) {
-                if (System.getProperty(s) != null) {
-                    vargs.add("-D" + s + "=" + System.getProperty(s));
-                }
-            }
+    		for(var ent : sp.entrySet()) {
+                vargs.add("-D" + ent.getKey() + "=" + ent.getValue());
+    		}
+
+    		vargs.add("-Dliftlib.rpc=" + rpc.getClass().getName());
             vargs.add("-Dliftlib.socket=" + endpoint.uri()); // more visible but should always work
             if(modular) {
                 /* TODO Use ProcessHandler to get the full original command line and process that instead.
@@ -227,9 +229,9 @@ public class ElevatedJVM implements Closeable {
 		LOG.log(Level.INFO, "Helper exited cleanly.");
 	}
 
-	private String makePathsAbsolute(String mp) {
+	private String makePathsAbsolute(Set<String> mp) {
 	    var l = new ArrayList<String>();
-	    for(var e : mp.split(File.pathSeparator)) {
+	    for(var e : mp) {
 	        var p = Paths.get(e);
 	        if(p.isAbsolute())
 	            l.add(p.toString());
@@ -247,7 +249,7 @@ public class ElevatedJVM implements Closeable {
 		return false;
 	}
 
-	private String fixMacClassDevelopmentPath(String cp, AtomicInteger idx) throws IOException {
+	private Set<String> fixMacClassDevelopmentPath(Set<String> cp, AtomicInteger idx) throws IOException {
 		/* Argh. Work around for Mac OS and it's very restrictive permissions
 		 * system. As an administrator, even we can't read certain files
 		 * (without consent), but consent can never be given. 
@@ -258,7 +260,7 @@ public class ElevatedJVM implements Closeable {
 		var tmpPath = Paths.get("/tmp/liftlib/" + Integer.toUnsignedLong(hashCode()) + ".tmp");
 		Files.createDirectories(tmpPath);
 		var newPaths = new ArrayList<Path>();
-		for(var cpEl : cp.split(File.pathSeparator)) {
+		for(var cpEl : cp) {
 			var path = Paths.get(cpEl);
 			if(Files.isRegularFile(path) && cpEl.toLowerCase().endsWith(".jar")) {
 				var target = tmpPath.resolve(path.getFileName());
@@ -279,7 +281,7 @@ public class ElevatedJVM implements Closeable {
 				newPaths.add(path);
 			}
 		}
-		cp = String.join(File.pathSeparator, newPaths.stream().map(Path::toString).collect(Collectors.toList()));
+		cp = newPaths.stream().map(Path::toString).collect(Collectors.toSet());
 		removeFilesOnClose.add(tmpPath);
 		tmpPath.toFile().deleteOnExit();
 		return cp;

@@ -76,4 +76,9 @@ public class UDSRPC implements RPC {
 			}
 		};
 	}
+
+	@Override
+	public int weight() {
+		return 10;
+	}
 }

@@ -21,9 +21,17 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -84,9 +92,31 @@ public final class Elevator {
 		private Duration reauthorizationInterval = Duration.ofMinutes(1);
 		private Optional<String> username = Optional.empty();
 		private Optional<char[]> password = Optional.empty();
+		private Optional<Boolean> devMode = Optional.empty();
+		private Optional<Supplier<RPC>> rpc = Optional.empty();
+		private List<RuntimePathProvider> pathProviders = new ArrayList<>();
 
 		public Elevator build() {
 			return new Elevator(this);
+		}
+		
+		public ElevatorBuilder withRPC(Supplier<RPC> rpc) {
+			this.rpc = Optional.of(rpc);
+			return this;
+		}
+		
+		public ElevatorBuilder withRuntimePathProviders(RuntimePathProvider... providers) {
+			return withRuntimePathProviders(Arrays.asList(providers));
+		}
+		
+		public ElevatorBuilder withRuntimePathProviders(Collection<RuntimePathProvider> providers) {
+			this.pathProviders.addAll(providers);
+			return this;
+		}
+		
+		public ElevatorBuilder withDevMode(boolean devMode) {
+			this.devMode = Optional.of(devMode);
+			return this;
 		}
 
 		public ElevatorBuilder withReauthorizationPolicy(ReauthorizationPolicy reauthorizationPolicy) {
@@ -145,7 +175,9 @@ public final class Elevator {
 	private final Duration reauthorizationInterval;
 	private final Optional<String> username;
 	private final Optional<char[]> password;
-	
+	private final Optional<Boolean> devMode;
+	private final List<RuntimePathProvider> pathProviders;
+	private final Optional<Supplier<RPC>> rpc;
 	
 	private ElevatedJVM jvm;
 	private long lastAuth;
@@ -158,6 +190,9 @@ public final class Elevator {
 		this.reauthorizationInterval = builder.reauthorizationInterval;
 		this.username = builder.username;
 		this.password = builder.password;
+		this.devMode = builder.devMode;
+		this.pathProviders = Collections.unmodifiableList(builder.pathProviders.isEmpty() ? Arrays.asList(BootRuntimePathProvider.getDefault()) : builder.pathProviders);
+		this.rpc = builder.rpc;
 	}
 	
 	public void run(Run closure) throws Exception {
@@ -201,7 +236,7 @@ public final class Elevator {
 				if (jvm == null || !jvm.isActive()) {
 					if(LOG.isLoggable(Level.FINE))
 						LOG.fine("Creating new elevator JVM");
-					jvm = new ElevatedJVM(PlatformElevation.forEnvironment(username, password));
+					jvm = new ElevatedJVM(PlatformElevation.forEnvironment(username, password), devMode.orElseGet(() -> Files.exists(Paths.get("pom.xml"))), pathProviders, rpc.orElse(() -> RPC.get()));
 					out = new ObjectOutputStream(jvm.getOutputStream());
 				}
 				if(LOG.isLoggable(Level.FINE))
