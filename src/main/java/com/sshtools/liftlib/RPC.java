@@ -35,13 +35,13 @@ public interface RPC {
 
 	public static RPC get() {
 		return ServiceLoader.load(RPC.class).stream().map(f -> f.get())
-				.sorted((o1, o2) -> Integer.valueOf(o1.weight()).compareTo(o2.weight())).peek(rpc -> System.out.println("RPC: " + rpc)).findFirst()
+				.sorted((o1, o2) -> Integer.valueOf(o1.weight()).compareTo(o2.weight())).findFirst()
 				.orElseGet(() -> new TCPRPC());
 	}
 	
 	public static RPC get(ClassLoader cl) {
 		return ServiceLoader.load(RPC.class, cl).stream().map(f -> f.get())
-				.sorted((o1, o2) -> Integer.valueOf(o1.weight()).compareTo(o2.weight())).peek(rpc -> System.out.println("RPC: " + rpc)).findFirst()
+				.sorted((o1, o2) -> Integer.valueOf(o1.weight()).compareTo(o2.weight())).findFirst()
 				.orElseGet(() -> new TCPRPC());
 	}
 	
