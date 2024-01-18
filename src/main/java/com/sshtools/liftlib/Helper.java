@@ -42,28 +42,35 @@ public class Helper implements Callable<Integer> {
 
 	@Override
 	public Integer call() throws Exception {
-		var helperPath = System.getProperty("liftlib.socket", System.getenv("LIFTLIB_SOCKET"));
-		if(helperPath == null && args.length > 0)
-		    helperPath = args[0];
-		if (helperPath == null) {
-			System.setOut(System.err);
-			System.setIn(InputStream.nullInputStream());
-			try (var in = new ObjectInputStream(System.in)) {
-				try (var out = new ObjectOutputStream(System.out)) {
-					cmdLoop(in, out);
+		try {
+			var helperPath = System.getProperty("liftlib.socket", System.getenv("LIFTLIB_SOCKET"));
+			if(helperPath == null && args.length > 0)
+			    helperPath = args[0];
+			if (helperPath == null) {
+				System.setOut(System.err);
+				System.setIn(InputStream.nullInputStream());
+				try (var in = new ObjectInputStream(System.in)) {
+					try (var out = new ObjectOutputStream(System.out)) {
+						cmdLoop(in, out);
+					}
+				} catch (EOFException e) {
 				}
-			} catch (EOFException e) {
-			}
-		} else {
-			var channel = RPC.get().connect(helperPath);
-			try (var in = new ObjectInputStream(Channels.newInputStream(channel))) {
-				try (var out = new ObjectOutputStream(Channels.newOutputStream(channel))) {
-					cmdLoop(in, out);
+			} else {
+				var channel = RPC.get().connect(helperPath);
+				try (var in = new ObjectInputStream(Channels.newInputStream(channel))) {
+					try (var out = new ObjectOutputStream(Channels.newOutputStream(channel))) {
+						cmdLoop(in, out);
+					}
+				} catch (EOFException e) {
 				}
-			} catch (EOFException e) {
 			}
+			return 0;
 		}
-		return 0;
+		finally {
+			System.out.println("WAIT END");
+			System.err.println("WAIT END ERR");
+			Thread.sleep(30000);
+		}
 	}
 
 	@SuppressWarnings("serial")

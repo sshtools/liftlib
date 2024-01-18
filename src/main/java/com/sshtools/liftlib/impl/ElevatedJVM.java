@@ -187,7 +187,6 @@ public class ElevatedJVM implements Closeable {
 		}
 
 		var builder = new ProcessBuilder(vargs);
-		builder.environment().putAll(System.getenv());
 		
 		if(OS.isMacOs() && !OS.getDesktopEnvironment().equals(Desktop.CONSOLE)) {
 			/* Another Mac OS X hack. If you try to run GUI applications in the 
