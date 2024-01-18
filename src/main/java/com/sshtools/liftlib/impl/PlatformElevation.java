@@ -65,9 +65,9 @@ public interface PlatformElevation {
 //					if (hasCommand("sudo") && console == null)
 //						return new SudoAskPassUser(username);
 //					else {
-						if (hasCommand("sudo") || hasCommand("su")) {
-							return new SUAdministrator(username);
-						}
+					if (hasCommand("sudo") || hasCommand("su")) {
+						return new SUAdministrator(username);
+					}
 //					}
 				} else {
 					// Unknown desktop
@@ -80,7 +80,7 @@ public interface PlatformElevation {
 				if (password.isPresent()) {
 					return new SudoFixedPasswordUser(password.get());
 				} else if (hasCommand("sudo")) {
-					if(dt.equals(Desktop.CONSOLE))
+					if (dt.equals(Desktop.CONSOLE))
 						return new SUAdministrator(username);
 					else
 						return new SudoAskPassGuiUser(username);
@@ -99,7 +99,7 @@ public interface PlatformElevation {
 	}
 
 	default void lower() {
-		
+
 	}
 
 	void elevate(ProcessBuilder builder);
@@ -263,64 +263,69 @@ public interface PlatformElevation {
 				cmd.add(1, "-credential");
 				cmd.add(2, u);
 			});
-			
-			
-			if(Boolean.getBoolean("liftlib.plainPowershellCommand")) {
-				cmd.add("-command");
-				
 
+			var opts = "-Wait -FilePath " + powershellInnerString(exe) + " -verb RunAs";
+			if(Boolean.getBoolean("liftlib.redirectStreams")) {
+				opts += " -RedirectStandardInput liftin.txt";
+				opts += " -RedirectStandardOutput liftout.txt";
+				opts += " -RedirectStandardError lifterr.txt";
+			}
+
+			if (Boolean.getBoolean("liftlib.plainPowershellCommand")) {
+				cmd.add("-command");
 
 				args = args.stream().map(PlatformElevation::powershellString).collect(Collectors.toList());
-	
+
 				String powerShell;
-				if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+				if (Boolean.getBoolean("liftlib.showPowershellWindow")) {
 					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process -Wait -FilePath %s -verb RunAs", powershellString(exe));
+						powerShell = String.format("Start-Process %s ", opts);
 					} else {
-						powerShell = String.format("Start-Process -Wait -FilePath %s -ArgumentList %s -verb RunAs",
-								powershellString(exe), String.join(",", args));
+						powerShell = String.format("Start-Process %s -ArgumentList \"%s\"", opts,
+								String.join(" ", args));
+					}
+				} else {
+					if (args.isEmpty()) {
+						powerShell = String.format("Start-Process -WindowStyle hidden %s", opts);
+					} else {
+						powerShell = String.format(
+								"Start-Process -WindowStyle hidden %s -ArgumentList \"%s\"", opts,
+								String.join(" ", args));
 					}
 				}
-				else {
-					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -verb RunAs", powershellString(exe));
-					} else {
-						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -ArgumentList %s -verb RunAs",
-								powershellString(exe), String.join(",", args));
-					}
-				}
-				
-				cmd.add(String.format("&{%s}", powerShell));
-			}
-			else {
+
+//				cmd.add(String.format("&{%s}", powerShell));
+				cmd.add(powerShell);
+			} else {
 				cmd.add("-encodedCommand");
 				String powerShell;
-				
-				args = args.stream().map(PlatformElevation::powershellString).collect(Collectors.toList());
 
-				if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+				args = args.stream().map(PlatformElevation::powershellInnerString).collect(Collectors.toList());
+
+				if (Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
 					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process -Wait -FilePath %s -verb RunAs", powershellString(exe));
+						powerShell = String.format("Start-Process %s", opts);
 					} else {
-						powerShell = String.format("Start-Process -Wait -FilePath %s -ArgumentList %s -verb RunAs",
-								powershellString(exe), String.join(",", args));
+						powerShell = String.format("Start-Process %s -ArgumentList %s", opts,
+								String.join(",", args));
+					}
+				} else {
+					if (args.isEmpty()) {
+						powerShell = String.format("Start-Process -WindowStyle hidden %s", opts);
+					} else {
+						powerShell = String.format(
+								"Start-Process -WindowStyle hidden %s -ArgumentList %s", opts,
+								String.join(",", args));
 					}
 				}
-				else {
-					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -verb RunAs", powershellString(exe));
-					} else {
-						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -ArgumentList %s -verb RunAs",
-								powershellString(exe), String.join(",", args));
-					}
-				}
-				
+
 				try {
+					LOG.log(Level.INFO, "Unencoded: {0}", powerShell);
 					cmd.add(Base64.getEncoder().encodeToString(powerShell.getBytes("UTF-16LE")));
 				} catch (UnsupportedEncodingException e) {
 					throw new UncheckedIOException(e);
 				}
-				
+
 			}
 
 //			cmd.add(Base64.getUrlEncoder().encodeToString(powerShell.getBytes()));
@@ -404,7 +409,7 @@ public interface PlatformElevation {
 	 *
 	 */
 	public static class SUAdministrator extends AbstractProcessBuilderEffectiveUser implements PlatformElevation {
-		
+
 		private Optional<String> username;
 		private String stty;
 
@@ -446,37 +451,35 @@ public interface PlatformElevation {
 			}
 		}
 	}
-	
+
 	static String saveStty() {
 		var pb = new ProcessBuilder("stty", "-g");
 		pb.redirectInput(Redirect.INHERIT);
 		pb.redirectError(Redirect.DISCARD);
 		try {
 			var p = pb.start();
-			try(var rdr = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+			try (var rdr = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
 				return rdr.readLine();
 			}
-		}
-		catch(Exception e) {
+		} catch (Exception e) {
 			LOG.log(Level.SEVERE, "Failed to save stty settings. Output may be messed up.", e);
 		}
 		return null;
 	}
-	
+
 	static void restoreStty(String stty) {
-		if(stty != null) {
+		if (stty != null) {
 			var pb = new ProcessBuilder("stty", stty);
 			pb.redirectInput(Redirect.INHERIT);
 			pb.redirectOutput(Redirect.INHERIT);
 			pb.redirectError(Redirect.INHERIT);
 			try {
 				var p = pb.start();
-				if(p.waitFor() != 0) {
+				if (p.waitFor() != 0) {
 					throw new IOException("Non-zero exist status.");
 				}
 				return;
-			}
-			catch(Exception e) {
+			} catch (Exception e) {
 				LOG.log(Level.SEVERE, "Failed to restore stty settings. Output may be messed up.", e);
 			}
 		}
@@ -505,12 +508,19 @@ public interface PlatformElevation {
 	static String escapeSingleQuotes(String src) {
 		return src.replace("'", "''");
 	}
-	
+
 	static String powershellString(String str) {
-		if(str.matches("\\s+"))
+		if (str.matches("\\s+"))
 			return "`\"" + str + "`\"";
 		else
-			return "\"" + str + "\"";		
+			return str;
+	}
+
+	static String powershellInnerString(String str) {
+		if (str.matches("\\s+"))
+			return "\"`\"" + str + "\"`\"";
+		else
+			return "\"" + str + "\"";
 	}
 
 	default void ready() {

@@ -95,9 +95,15 @@ public final class Elevator {
 		private Optional<Boolean> devMode = Optional.empty();
 		private Optional<Supplier<RPC>> rpc = Optional.empty();
 		private List<RuntimePathProvider> pathProviders = new ArrayList<>();
+		private boolean forceClassPath = Boolean.getBoolean("liftlib.forceClassPath");
 
 		public Elevator build() {
 			return new Elevator(this);
+		}
+		
+		public ElevatorBuilder withForceClassPath(boolean forceClassPath) {
+			this.forceClassPath = forceClassPath;
+			return this;
 		}
 		
 		public ElevatorBuilder withRPC(Supplier<RPC> rpc) {
@@ -178,6 +184,7 @@ public final class Elevator {
 	private final Optional<Boolean> devMode;
 	private final List<RuntimePathProvider> pathProviders;
 	private final Optional<Supplier<RPC>> rpc;
+	private final boolean forceClassPath;
 	
 	private ElevatedJVM jvm;
 	private long lastAuth;
@@ -193,6 +200,7 @@ public final class Elevator {
 		this.devMode = builder.devMode;
 		this.pathProviders = Collections.unmodifiableList(builder.pathProviders.isEmpty() ? Arrays.asList(BootRuntimePathProvider.getDefault()) : builder.pathProviders);
 		this.rpc = builder.rpc;
+		this.forceClassPath = builder.forceClassPath;
 	}
 	
 	public void run(Run closure) throws Exception {
@@ -236,7 +244,7 @@ public final class Elevator {
 				if (jvm == null || !jvm.isActive()) {
 					if(LOG.isLoggable(Level.FINE))
 						LOG.fine("Creating new elevator JVM");
-					jvm = new ElevatedJVM(PlatformElevation.forEnvironment(username, password), devMode.orElseGet(() -> Files.exists(Paths.get("pom.xml"))), pathProviders, rpc.orElse(() -> RPC.get()));
+					jvm = new ElevatedJVM(PlatformElevation.forEnvironment(username, password), devMode.orElseGet(() -> Files.exists(Paths.get("pom.xml"))), pathProviders, rpc.orElse(() -> RPC.get()), forceClassPath);
 					out = new ObjectOutputStream(jvm.getOutputStream());
 				}
 				if(LOG.isLoggable(Level.FINE))

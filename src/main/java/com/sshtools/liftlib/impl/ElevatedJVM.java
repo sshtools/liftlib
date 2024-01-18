@@ -64,7 +64,7 @@ public class ElevatedJVM implements Closeable {
 	private boolean ready;
 	private Thread thread;;
 
-	public ElevatedJVM(PlatformElevation elevation, boolean dev, List<RuntimePathProvider> pathProviders, Supplier<RPC> rpcSupplier) throws IOException {
+	public ElevatedJVM(PlatformElevation elevation, boolean dev, List<RuntimePathProvider> pathProviders, Supplier<RPC> rpcSupplier, boolean forceClassPath) throws IOException {
 		
 		this.elevation = elevation;
 
@@ -105,31 +105,53 @@ public class ElevatedJVM implements Closeable {
     		
     		
     		if (!mp.isEmpty()) {
-    			for(var p : mp) {
-    				if(!modular) {
-    					var f = Paths.get(p);
+    			if(forceClassPath) {
+	    			for(var p : mp) {
+	    				var f = Paths.get(p);
     					if(Files.isDirectory(f)) {
-    						try(var dstream = Files.newDirectoryStream(f)) {
+    						int jars = 0;
+    						try(var dstream = Files.newDirectoryStream(f, fp -> fp.getFileName().toString().endsWith(".jar"))) {
     							for(var d : dstream) {
-    								modular = isLiftLib(d);
-    								if(modular) {
-    									break;
-    								}
+    								cp.add(f.resolve(d).toString());
+    								jars++;
     							}
+    						}
+    						if(jars ==0) {
+        						cp.add(p);
     						}
     					}
     					else {
-    						modular = isLiftLib(f);
-    						if(modular)
-    							break;
+    						cp.add(p);
     					}
-    				}
+	    			}
     			}
-    			if(macDev) {
-    				mp = fixMacClassDevelopmentPath(mp, idx);
+    			else {
+	    			for(var p : mp) {
+	    				if(!modular) {
+	    					var f = Paths.get(p);
+	    					if(Files.isDirectory(f)) {
+	    						try(var dstream = Files.newDirectoryStream(f)) {
+	    							for(var d : dstream) {
+	    								modular = isLiftLib(d);
+	    								if(modular) {
+	    									break;
+	    								}
+	    							}
+	    						}
+	    					}
+	    					else {
+	    						modular = isLiftLib(f);
+	    						if(modular)
+	    							break;
+	    					}
+	    				}
+	    			}
+	    			if(macDev) {
+	    				mp = fixMacClassDevelopmentPath(mp, idx);
+	    			}
+	    			vargs.add("-p");
+	    			vargs.add(makePathsAbsolute(mp));
     			}
-    			vargs.add("-p");
-    			vargs.add(makePathsAbsolute(mp));
     		}
     
     		if (!cp.isEmpty()) {
