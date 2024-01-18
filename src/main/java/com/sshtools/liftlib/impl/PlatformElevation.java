@@ -28,9 +28,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.UncheckedIOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.ProcessBuilder.Redirect;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -251,10 +254,8 @@ public interface PlatformElevation {
 		public void elevate(ProcessBuilder builder) {
 
 			var cmd = builder.command();
-
 			var exe = cmd.remove(0);
-			var args = new ArrayList<String>(cmd).stream().map(s -> "\"\"\"" + s + "\"\"\""
-			).collect(Collectors.toList());
+			List<String> args = new ArrayList<>(cmd);
 
 			cmd.clear();
 			cmd.add("powershell");
@@ -262,28 +263,66 @@ public interface PlatformElevation {
 				cmd.add(1, "-credential");
 				cmd.add(2, u);
 			});
-			cmd.add("-command");
-//			cmd.add("-encodedCommand");
+			
+			
+			if(Boolean.getBoolean("liftlib.plainPowershellCommand")) {
+				cmd.add("-command");
+				
 
-			String powerShell;
-			if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
-				if (args.isEmpty()) {
-					powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
-				} else {
-					powerShell = String.format("Start-Process -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs",
-							exe, String.join(",", args));
+
+				args = args.stream().map(PlatformElevation::powershellString).collect(Collectors.toList());
+	
+				String powerShell;
+				if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+					if (args.isEmpty()) {
+						powerShell = String.format("Start-Process -Wait -FilePath %s -verb RunAs", powershellString(exe));
+					} else {
+						powerShell = String.format("Start-Process -Wait -FilePath %s -ArgumentList %s -verb RunAs",
+								powershellString(exe), String.join(",", args));
+					}
 				}
+				else {
+					if (args.isEmpty()) {
+						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -verb RunAs", powershellString(exe));
+					} else {
+						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -ArgumentList %s -verb RunAs",
+								powershellString(exe), String.join(",", args));
+					}
+				}
+				
+				cmd.add(String.format("&{%s}", powerShell));
 			}
 			else {
-				if (args.isEmpty()) {
-					powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath \"\"\"%s\"\"\" -verb RunAs", exe);
-				} else {
-					powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath \"\"\"%s\"\"\" -ArgumentList %s -verb RunAs",
-							exe, String.join(",", args));
+				cmd.add("-encodedCommand");
+				String powerShell;
+				
+				args = args.stream().map(PlatformElevation::powershellString).collect(Collectors.toList());
+
+				if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+					if (args.isEmpty()) {
+						powerShell = String.format("Start-Process -Wait -FilePath %s -verb RunAs", powershellString(exe));
+					} else {
+						powerShell = String.format("Start-Process -Wait -FilePath %s -ArgumentList %s -verb RunAs",
+								powershellString(exe), String.join(",", args));
+					}
 				}
+				else {
+					if (args.isEmpty()) {
+						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -verb RunAs", powershellString(exe));
+					} else {
+						powerShell = String.format("Start-Process -WindowStyle hidden -Wait -FilePath %s -ArgumentList %s -verb RunAs",
+								powershellString(exe), String.join(",", args));
+					}
+				}
+				
+				try {
+					cmd.add(Base64.getEncoder().encodeToString(powerShell.getBytes("UTF-16LE")));
+				} catch (UnsupportedEncodingException e) {
+					throw new UncheckedIOException(e);
+				}
+				
 			}
 
-			cmd.add(String.format("&{%s}", powerShell));
 //			cmd.add(Base64.getUrlEncoder().encodeToString(powerShell.getBytes()));
 //			cmd.add(powerShell);
 
@@ -465,6 +504,13 @@ public interface PlatformElevation {
 
 	static String escapeSingleQuotes(String src) {
 		return src.replace("'", "''");
+	}
+	
+	static String powershellString(String str) {
+		if(str.matches("\\s+"))
+			return "\"`\"" + str + "\"`\"";
+		else
+			return "\"" + str + "\"";		
 	}
 
 	default void ready() {
