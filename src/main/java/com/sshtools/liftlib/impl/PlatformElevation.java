@@ -508,7 +508,7 @@ public interface PlatformElevation {
 	
 	static String powershellString(String str) {
 		if(str.matches("\\s+"))
-			return "\"`\"" + str + "\"`\"";
+			return "`\"" + str + "`\"";
 		else
 			return "\"" + str + "\"";		
 	}
