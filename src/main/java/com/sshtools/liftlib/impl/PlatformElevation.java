@@ -264,7 +264,7 @@ public interface PlatformElevation {
 				cmd.add(2, u);
 			});
 
-			var opts = "-Wait -FilePath " + powershellInnerString(exe) + " -verb RunAs";
+			var opts = "-Wait -FilePath \"" + exe + "\" -verb RunAs";
 
 			if(Boolean.getBoolean("liftlib.passThru")) {
 				opts += " -PassThru";
