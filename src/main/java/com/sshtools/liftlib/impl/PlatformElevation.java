@@ -265,10 +265,16 @@ public interface PlatformElevation {
 			});
 
 			var opts = "-Wait -FilePath " + powershellInnerString(exe) + " -verb RunAs";
+
+			if(Boolean.getBoolean("liftlib.passThru")) {
+				opts += " -PassThru";
+			}
+//			opts += " -UseNewEnvironment";
+			
 			if(Boolean.getBoolean("liftlib.redirectStreams")) {
-				opts += " -RedirectStandardInput liftin.txt";
-				opts += " -RedirectStandardOutput liftout.txt";
-				opts += " -RedirectStandardError lifterr.txt";
+				opts += " \"-RedirectStandardInput liftin.txt\"";
+				opts += " \"-RedirectStandardOutput liftout.txt\"";
+				opts += " \"-RedirectStandardError lifterr.txt\"";
 			}
 
 			if (Boolean.getBoolean("liftlib.plainPowershellCommand")) {
@@ -302,7 +308,7 @@ public interface PlatformElevation {
 
 				args = args.stream().map(PlatformElevation::powershellInnerString).collect(Collectors.toList());
 
-				if (Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+				if (Boolean.getBoolean("liftlib.showPowershellWindow")) {
 					if (args.isEmpty()) {
 						powerShell = String.format("Start-Process %s", opts);
 					} else {
