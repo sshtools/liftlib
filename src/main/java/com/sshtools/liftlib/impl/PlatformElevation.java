@@ -516,14 +516,18 @@ public interface PlatformElevation {
 	}
 
 	static String powershellString(String str) {
-		if (str.matches("\\s+"))
+		if (isWhitespace(str))
 			return "`\"" + str + "`\"";
 		else
 			return str;
 	}
 
+	static boolean isWhitespace(String str) {
+		return str.contains(" ") || str.contains("\t");
+	}
+
 	static String powershellInnerString(String str) {
-		if (str.matches("\\s+"))
+		if (isWhitespace(str))
 			return "\"`\"" + str + "\"`\"";
 		else
 			return "\"" + str + "\"";
