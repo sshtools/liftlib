@@ -223,6 +223,9 @@ public class OS {
 	}
 
 	public static String getJavaPath() {
+		String forceJava = System.getProperty("liftlib.jre");
+		if(forceJava != null)
+			return forceJava;
 		String javaExe = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
 		if (isWindows()) {
 			if (!Boolean.getBoolean("liftlib.alwaysConsole") && !Boolean.getBoolean("liftlib.debug") && !javaExe.toLowerCase().endsWith("w")) {

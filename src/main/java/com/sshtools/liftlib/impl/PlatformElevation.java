@@ -21,6 +21,10 @@ import static com.sshtools.liftlib.OS.hasCommand;
 import static com.sshtools.liftlib.OS.isLinux;
 import static com.sshtools.liftlib.OS.isMacOs;
 import static com.sshtools.liftlib.OS.isWindows;
+import static com.sshtools.liftlib.impl.PlatformElevation.getQuotedCommandString;
+import static com.sshtools.liftlib.impl.PlatformElevation.isWhitespace;
+import static com.sshtools.liftlib.impl.PlatformElevation.restoreStty;
+import static com.sshtools.liftlib.impl.PlatformElevation.saveStty;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -28,17 +32,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.lang.ProcessBuilder.Redirect;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 import com.sshtools.liftlib.OS;
 import com.sshtools.liftlib.OS.Desktop;
@@ -249,94 +249,49 @@ public interface PlatformElevation {
 		private RunAsUser(Optional<String> username) {
 			this.username = username;
 		}
-
+		
 		@Override
 		public void elevate(ProcessBuilder builder) {
 
 			var cmd = builder.command();
-			var exe = cmd.remove(0);
-			List<String> args = new ArrayList<>(cmd);
 
-			cmd.clear();
-			cmd.add("powershell");
+			var exe = cmd.remove(0);
+			var hasArgs = cmd.size() > 0;
+			cmd.add(0, "powershell.exe");
+			cmd.add(1, "-command");
+			if(Boolean.getBoolean("liftlib.windows.showPowershellWindow")) {
+				if (hasArgs) {
+					cmd.addAll(2, Arrays.asList("Start-Process", "-Wait", "-FilePath", "\"\"\"" + exe + "\"\"\"", "-verb RunAs", "-ArgumentList", extractArgs(2, cmd)));
+				} else {
+					cmd.addAll(2, Arrays.asList("Start-Process", "-Wait", "-FilePath", "\"\"\"" + exe + "\"\"\"", "-verb RunAs"));
+				}
+			}
+			else {
+				if (hasArgs) {
+					cmd.addAll(2, Arrays.asList("Start-Process", "-WindowStyle", "hidden", "-Wait", "-FilePath", "\"\"\"" + exe + "\"\"\"", "-verb RunAs", "-ArgumentList", extractArgs(2, cmd)));
+				} else {
+					cmd.addAll(2, Arrays.asList("Start-Process", "-WindowStyle", "hidden", "-Wait", "-FilePath", "\"\"\"" + exe + "\"\"\"", "-verb RunAs"));
+				}
+			}
 			username.ifPresent(u -> {
 				cmd.add(1, "-credential");
 				cmd.add(2, u);
 			});
+		}
 
-			var opts = "-Wait -FilePath \"" + exe + "\" -verb RunAs";
 
-			if(Boolean.getBoolean("liftlib.passThru")) {
-				opts += " -PassThru";
+		private String extractArgs(int i, List<String> cmd) {
+			var as = new ArrayList<>(cmd.subList(i, cmd.size()));
+			for(int j = cmd.size() - 1 ; j >= i; j--) {
+				cmd.remove(j);
 			}
-//			opts += " -UseNewEnvironment";
-			
-			if(Boolean.getBoolean("liftlib.redirectStreams")) {
-				opts += " \"-RedirectStandardInput liftin.txt\"";
-				opts += " \"-RedirectStandardOutput liftout.txt\"";
-				opts += " \"-RedirectStandardError lifterr.txt\"";
-			}
-
-			if (Boolean.getBoolean("liftlib.plainPowershellCommand")) {
-				cmd.add("-command");
-
-				args = args.stream().map(PlatformElevation::powershellString).collect(Collectors.toList());
-
-				String powerShell;
-				if (Boolean.getBoolean("liftlib.showPowershellWindow")) {
-					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process %s ", opts);
-					} else {
-						powerShell = String.format("Start-Process %s -ArgumentList \"%s\"", opts,
-								String.join(" ", args));
-					}
-				} else {
-					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process -WindowStyle hidden %s", opts);
-					} else {
-						powerShell = String.format(
-								"Start-Process -WindowStyle hidden %s -ArgumentList \"%s\"", opts,
-								String.join(" ", args));
-					}
-				}
-
-//				cmd.add(String.format("&{%s}", powerShell));
-				cmd.add(powerShell);
-			} else {
-				cmd.add("-encodedCommand");
-				String powerShell;
-
-				args = args.stream().map(PlatformElevation::powershellInnerString).collect(Collectors.toList());
-
-				if (Boolean.getBoolean("liftlib.showPowershellWindow")) {
-					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process %s", opts);
-					} else {
-						powerShell = String.format("Start-Process %s -ArgumentList %s", opts,
-								String.join(",", args));
-					}
-				} else {
-					if (args.isEmpty()) {
-						powerShell = String.format("Start-Process -WindowStyle hidden %s", opts);
-					} else {
-						powerShell = String.format(
-								"Start-Process -WindowStyle hidden %s -ArgumentList %s", opts,
-								String.join(",", args));
-					}
-				}
-
-				try {
-					LOG.log(Level.INFO, "Unencoded: {0}", powerShell);
-					cmd.add(Base64.getEncoder().encodeToString(powerShell.getBytes("UTF-16LE")));
-				} catch (UnsupportedEncodingException e) {
-					throw new UncheckedIOException(e);
-				}
-
-			}
-
-//			cmd.add(Base64.getUrlEncoder().encodeToString(powerShell.getBytes()));
-//			cmd.add(powerShell);
-
+			List<String> nargs = as.stream().map(s -> {
+				if(isWhitespace(s))
+					return "`\"" + s + "`\"";
+				else
+					return s;
+			}).toList();
+			return String.join(" ", nargs);
 		}
 	}
 
@@ -515,22 +470,8 @@ public interface PlatformElevation {
 		return src.replace("'", "''");
 	}
 
-	static String powershellString(String str) {
-		if (isWhitespace(str))
-			return "`\"" + str + "`\"";
-		else
-			return str;
-	}
-
 	static boolean isWhitespace(String str) {
 		return str.contains(" ") || str.contains("\t");
-	}
-
-	static String powershellInnerString(String str) {
-		if (isWhitespace(str))
-			return "\"`\"" + str + "\"`\"";
-		else
-			return "\"" + str + "\"";
 	}
 
 	default void ready() {

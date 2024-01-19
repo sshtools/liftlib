@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.lang.ProcessBuilder.Redirect;
 import java.nio.channels.Channels;
 import java.nio.channels.SocketChannel;
@@ -185,6 +186,22 @@ public class ElevatedJVM implements Closeable {
                 vargs.add(Helper.class.getName());
             }
 		}
+		
+		if(OS.isWindows() && !Boolean.getBoolean("liftlib.noArgFile")) {
+			var argfile = Files.createTempFile("liftlib", ".args");
+			try(var out = new PrintWriter(Files.newBufferedWriter(argfile), true)) {
+				while(vargs.size() > 1) {
+					var str = vargs.remove(1);
+					if(PlatformElevation.isWhitespace(str)) {
+						out.println("\"" + str.replace("\\", "\\\\"));
+					}
+					else {
+						out.println(str);
+					}
+				}
+			}
+			vargs.add("@" + argfile.toString());
+		}
 
 		var builder = new ProcessBuilder(vargs);
 		
@@ -247,14 +264,15 @@ public class ElevatedJVM implements Closeable {
 				break;
 			}
 		}
-		elevation.ready();
-		LOG.log(Level.INFO, "Helper exited cleanly.");
+		elevation.ready(); 
+		LOG.log(Level.INFO, "Helper exited cleanly ");
 	}
 
 	private String makePathsAbsolute(Set<String> mp) {
 	    var l = new ArrayList<String>();
 	    for(var e : mp) {
 	        var p = Paths.get(e);
+	        p = p.normalize();
 	        if(p.isAbsolute())
 	            l.add(p.toString());
 	        else 
