@@ -373,7 +373,7 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         Env env;
         ProcessRedirect stdin, stdout, stderr;
 
-        protected AbstractProcessClosure() {
+        public AbstractProcessClosure() {
         }
 
         AbstractProcessClosure(SystemCommands parent) {
