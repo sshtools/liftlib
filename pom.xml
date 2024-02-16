@@ -21,7 +21,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.sshtools</groupId>
 	<artifactId>liftlib</artifactId>
-	<version>0.9.10</version>
+	<version>0.9.11-SNAPSHOT</version>
 	<name>LiftLib</name>
 	<properties>
 		<maven.compiler.target>17</maven.compiler.target>
@@ -95,7 +95,7 @@
 							<goal>read-project-properties</goal>
 						</goals>
 						<configuration>
-							<quiet>false</quiet>
+							<quiet>true</quiet>
 							<files>
 								<file>${build.projectProperties}</file>
 								<file>${build.userProperties}</file>
