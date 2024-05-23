@@ -6,12 +6,14 @@ import com.sshtools.liftlib.Elevator.ReauthorizationPolicy;
 import com.sshtools.liftlib.OS;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.lang.ProcessBuilder.Redirect;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +38,7 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
     }
     
     public ElevatableSystemCommands(Elevator elevator) {
-        super(Collections.emptyMap(), Optional.empty(), Optional.empty(), Optional.empty());
+        super(Collections.emptyMap(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         this.elevator = elevator;
     }
 
@@ -45,7 +47,7 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         if(OS.isAdministrator())
             return this;
         
-        return new PrvilegedSystemCommands(this, env(), stdin(), stdout(), stderr());
+        return new PrvilegedSystemCommands(this, env(), stdin(), stdout(), stderr(), dir());
     }
 
     @Override
@@ -104,9 +106,9 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
     }
 
     @Override
-    public int consume(Consumer<String> consumer, String... args) throws IOException {
+    public int consume(Consumer<String> consumer, Consumer<String> errConsumer, String... args) throws IOException {
         try {
-            return new WithConsume(this, consumer, args).call();
+            return new WithConsume(this, consumer, null, args).call();
         } catch (IOException | RuntimeException e) {
             throw e;
         }  catch (Exception e) {
@@ -133,8 +135,8 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         private SystemCommands delegate;
 
         PrvilegedSystemCommands(SystemCommands delegate, Map<String, String> env, Optional<ProcessRedirect> stdin, Optional<ProcessRedirect> stdout,
-                Optional<ProcessRedirect> stderr) {
-            super(env, stdin, stdout, stderr);
+                Optional<ProcessRedirect> stderr, Optional<Path> dir) {
+            super(env, stdin, stdout, stderr, dir);
             this.delegate = delegate;
         }
 
@@ -205,9 +207,9 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         }
 
         @Override
-        public int consume(Consumer<String> consumer, String... args) throws IOException {
+        public int consume(Consumer<String> consumer, Consumer<String> errConsumer, String... args) throws IOException {
             try {
-                return elevator.closure(new WithConsume(this, consumer, args));
+                return elevator.closure(new WithConsume(this, consumer, errConsumer, args));
             } catch (IOException | RuntimeException e) {
                 throw e;
             }  catch (Exception e) {
@@ -260,7 +262,7 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
 
         @Override
         public SystemCommands privileged() {
-            return new PrvilegedSystemCommands(this, env(), stdin(), stdout(), stderr());
+            return new PrvilegedSystemCommands(this, env(), stdin(), stdout(), stderr(), dir());
         }
 
         @Override
@@ -298,9 +300,9 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         }
 
         @Override
-        public int consume(Consumer<String> consumer, String... args) throws IOException {
+        public int consume(Consumer<String> consumer, Consumer<String> errConsumer,  String... args) throws IOException {
             onLog.ifPresent(c -> c.accept(args));
-            return delegate.consume(consumer, args);
+            return delegate.consume(consumer, errConsumer, args);
         }
 
         @Override
@@ -351,6 +353,17 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         public Optional<ProcessRedirect> stdin() {
             return delegate.stdin();
         }
+
+        @Override
+        public Optional<Path> dir() {
+            return delegate.dir();
+        }
+
+        @Override
+        public SystemCommands dir(Path dir) {
+            delegate.dir(dir);
+            return this;
+        }
     }
     
     @SuppressWarnings("serial")
@@ -372,6 +385,7 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
 
         Env env;
         ProcessRedirect stdin, stdout, stderr;
+        String dir;
 
         public AbstractProcessClosure() {
         }
@@ -381,6 +395,7 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
             this.stdin = parent.stdin().orElse(null);
             this.stdout = parent.stdout().orElse(null);
             this.stderr = parent.stderr().orElse(null);
+            this.dir = parent.dir().map(Path::toString).orElse(null);
         }
 
     }
@@ -407,6 +422,8 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
             bldr.redirectError(stderr == null ? Redirect.INHERIT : stderr.toRedirect());
             bldr.redirectInput(stdin == null ? Redirect.INHERIT : stdin.toRedirect());
             bldr.redirectOutput(stdout == null ? Redirect.INHERIT : stdout.toRedirect());
+            if(dir != null)
+                bldr.directory(new File(dir));
             var process = bldr.start();
             var result = process.waitFor();
             if (result != 0) {
@@ -435,6 +452,8 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
             var bldr = new ProcessBuilder(args);
             if (!env.isEmpty())
                 bldr.environment().putAll(env);
+            if(dir != null)
+                bldr.directory(new File(dir));
             bldr.redirectError(stderr == null ? Redirect.INHERIT : stderr.toRedirect());
             bldr.redirectInput(stdin == null ? Redirect.INHERIT : stdin.toRedirect());
             bldr.redirectOutput(stdout == null ? Redirect.INHERIT : stdout.toRedirect());
@@ -469,6 +488,8 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
             	bldr.redirectError(stderr.toRedirect());
             }
             bldr.redirectInput(stdin == null ? Redirect.INHERIT : stdin.toRedirect());
+            if(dir != null)
+                bldr.directory(new File(dir));
             var process = bldr.start();
             String line = null;
             var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -508,6 +529,8 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
                 bldr.environment().putAll(env);
             bldr.redirectError(stderr == null ? Redirect.INHERIT : stderr.toRedirect());
             bldr.redirectInput(stdin == null ? Redirect.INHERIT : stdin.toRedirect());
+            if(dir != null)
+                bldr.directory(new File(dir));
             var process = bldr.start();
             String line = null;
             var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -543,6 +566,8 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
         @Override
         public String[] call(ElevatedClosure<String[], Serializable> closure) throws Exception {
             var bldr = new ProcessBuilder(args);
+            if(dir != null)
+                bldr.directory(new File(dir));
             if (!env.isEmpty())
                 bldr.environment().putAll(env);
             if(stderr == null)
@@ -578,20 +603,30 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
     public final static class WithConsume extends AbstractProcessClosure<Integer, String> {
 
         String[] args;
-        transient Consumer<String> consumer;
+        transient Consumer<String> outConsumer;
+        transient Consumer<String> errConsumer;
+        boolean hasOut;
+        boolean hasErr;
 
         public WithConsume() {
         }
 
-        WithConsume(SystemCommands parent, Consumer<String> consumer, String... args) {
+        WithConsume(SystemCommands parent, Consumer<String> outConsumer, Consumer<String> errConsumer, String... args) {
             super(parent);
             this.args = args;
-            this.consumer = consumer;
+            this.outConsumer = outConsumer;
+            this.errConsumer = errConsumer;
+            
+            hasOut = outConsumer != null;
+            hasErr = outConsumer != null;
         }
 
         @Override
         public void event(String event) {
-            consumer.accept(event);
+            if(event.startsWith("ERR:") && errConsumer != null)
+                errConsumer.accept(event.substring(4));
+            else if(event.startsWith("OUT:") && outConsumer != null)
+                outConsumer.accept(event.substring(4));
         }
 
         @Override
@@ -599,13 +634,44 @@ public class ElevatableSystemCommands extends SystemCommands.AbstractSystemComma
             var bldr = new ProcessBuilder(args);
             if (!env.isEmpty())
                 bldr.environment().putAll(env);
+            if(dir != null)
+                bldr.directory(new File(dir));
             bldr.redirectError(stderr == null ? Redirect.INHERIT : stderr.toRedirect());
             bldr.redirectInput(stdin == null ? Redirect.INHERIT : stdin.toRedirect());
+            
+            Thread otherThread;
+            
             var process = bldr.start();
-            var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line = null;
-            while ((line = reader.readLine()) != null) {
-                proxy.event(line);
+            if(hasOut) {
+                if(hasErr) {
+                    otherThread = new Thread(() -> {
+                        try {
+                            var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+                            String line = null;
+                            while ((line = reader.readLine()) != null) {
+                                proxy.event("ERR:" + line);
+                            }       
+                        }
+                        catch(IOException ioe) {
+                        }
+                    }, "ErrReader"); 
+                    otherThread.start();
+                }
+                
+                var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                String line = null;
+                while ((line = reader.readLine()) != null) {
+                    proxy.event("OUT:" + line);
+                }
+            }
+            else {
+                if(hasErr) {
+                    var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+                    String line = null;
+                    while ((line = reader.readLine()) != null) {
+                        proxy.event("OUT:" + line);
+                    }
+                }
             }
             try {
                 return process.waitFor();

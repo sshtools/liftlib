@@ -332,10 +332,12 @@ public final class Elevator {
 
 	private void closeJvm() throws IOException {
 		try {
-			if(LOG.isLoggable(Level.FINE))
-				LOG.fine("Closing Elevator JVM");
-			
-			jvm.close();
+		    if(jvm != null) {
+    			if(LOG.isLoggable(Level.FINE))
+    				LOG.fine("Closing Elevator JVM");
+    			
+    			jvm.close();
+		    }
 		} finally {
 			if(LOG.isLoggable(Level.FINE))
 				LOG.fine("Closed Elevator JVM");

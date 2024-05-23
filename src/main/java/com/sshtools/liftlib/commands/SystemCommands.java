@@ -1,16 +1,18 @@
 package com.sshtools.liftlib.commands;
 
+import com.sshtools.liftlib.ElevatedClosure;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.lang.ProcessBuilder.Redirect;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-
-import com.sshtools.liftlib.ElevatedClosure;
 
 public interface SystemCommands {
     
@@ -36,13 +38,26 @@ public interface SystemCommands {
         private Optional<ProcessRedirect> stdin;
         private Optional<ProcessRedirect> stdout;
         private Optional<ProcessRedirect> stderr;
+        private Optional<Path> dir;
 
         protected AbstractSystemCommands(Map<String, String> env, Optional<ProcessRedirect> stdin, Optional<ProcessRedirect> stdout,
-                Optional<ProcessRedirect> stderr) {
+                Optional<ProcessRedirect> stderr, Optional<Path> dir) {
             this.env.putAll(env);
             this.stdin = stdin;
             this.stdout = stdout;
             this.stderr = stderr;
+            this.dir = dir;
+        }
+
+        @Override
+        public SystemCommands dir(Path dir) {
+            this.dir = Optional.ofNullable(dir);
+            return this;
+        }
+        
+        @Override
+        public Optional<Path> dir() {
+            return dir;
         }
 
         @Override
@@ -90,6 +105,8 @@ public interface SystemCommands {
         }
 
     }
+    
+    Optional<Path> dir();
 
     Map<String, String> env();
 
@@ -98,6 +115,12 @@ public interface SystemCommands {
     PrintWriter pipe(Consumer<String> input, String... args) throws IOException;
 
     SystemCommands privileged();
+
+    SystemCommands dir(Path dir);
+
+    default SystemCommands dir(File dir) {
+        return dir(dir == null ? null : dir.toPath());
+    }
 
     SystemCommands logged();
 
@@ -125,7 +148,11 @@ public interface SystemCommands {
 
     Collection<String> pipeTo(String content, String... args) throws IOException;
 
-    int consume(Consumer<String> consumer, String... args) throws IOException;
+    default int consume(Consumer<String> consumer, String... args) throws IOException {
+        return consume(consumer, null, args);
+    }
+
+    int consume(Consumer<String> consumer, Consumer<String> errConsumer, String... args) throws IOException;
 
     <R extends Serializable> R task(ElevatedClosure<R, Serializable> task) throws Exception;
 

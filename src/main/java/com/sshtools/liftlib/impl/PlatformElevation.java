@@ -26,6 +26,11 @@ import static com.sshtools.liftlib.impl.PlatformElevation.isWhitespace;
 import static com.sshtools.liftlib.impl.PlatformElevation.restoreStty;
 import static com.sshtools.liftlib.impl.PlatformElevation.saveStty;
 
+import com.sshtools.liftlib.OS;
+import com.sshtools.liftlib.OS.Desktop;
+import com.sshtools.liftlib.ui.AskPass;
+import com.sshtools.liftlib.ui.AskPassConsole;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -39,11 +44,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.sshtools.liftlib.OS;
-import com.sshtools.liftlib.OS.Desktop;
-import com.sshtools.liftlib.ui.AskPass;
-import com.sshtools.liftlib.ui.AskPassConsole;
 
 public interface PlatformElevation {
 	final static Logger LOG = Logger.getLogger(PlatformElevation.class.getSimpleName());
