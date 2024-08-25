@@ -17,8 +17,10 @@ package com.sshtools.liftlib;
 
 import org.graalvm.nativeimage.ImageInfo;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -30,6 +32,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -121,6 +124,25 @@ public class OS {
 	}
 
 	private static final Map<String, Boolean> commandCache = new HashMap<>();
+	private final static Optional<String> unixAdmin;
+	
+	static {
+        Optional<String> s = Optional.empty();;
+	    if(isUnixLike()) {
+	        try {
+	            var pb = new ProcessBuilder("id", "0");
+	            var p = pb.start();
+	            try(var rdr = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+	                var parts = rdr.readLine().split("\\s+")[0].substring(6);
+	                s = Optional.of(parts.substring(0, parts.length() - 1));
+	            }
+	        }
+	        catch(Exception e) {
+	            s = Optional.empty();
+	        }
+	    }
+        unixAdmin = s;
+	}
 
 	/**
 	 * Get if this environment is running on a desktop (and has access to the
@@ -217,7 +239,7 @@ public class OS {
 					System.getProperty("liftlib.rootUser", "Administrator"));
 		}
 		if (isUnixLike()) {
-			return System.getProperty("liftlib.administratorUsername", System.getProperty("liftlib.rootUser", "root"));
+			return System.getProperty("liftlib.administratorUsername", System.getProperty("liftlib.rootUser", unixAdmin.orElse("root")));
 		}
 		throw new UnsupportedOperationException();
 	}
