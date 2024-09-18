@@ -303,6 +303,24 @@ public class OS {
 		}
 		throw new UnsupportedOperationException();
 	}
+	
+	public static boolean isElevated() {
+		if (!isAdministrator())
+			return false;
+		if (isLinux()) {
+			try {
+				var pb = new ProcessBuilder("logname");
+				var p = pb.start();
+				try (var rdr = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+					return !getAdministratorUsername().equals(rdr.readLine());
+				}
+			} catch (Exception e) {
+			}
+			return false;
+		} else {
+			throw new UnsupportedOperationException();
+		}
+	}
 
     public static final String osName() {
         return System.getProperty("os.name"); 
