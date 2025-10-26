@@ -21,7 +21,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.sshtools</groupId>
 	<artifactId>liftlib</artifactId>
-	<version>0.9.13</version>
+	<version>0.9.14</version>
 	<name>LiftLib</name>
 	<properties>
 		<maven.compiler.target>17</maven.compiler.target>
@@ -61,16 +61,6 @@
 	<inceptionYear>2023</inceptionYear>
 	<description>Lift - Library to create an elevated Java process for
 		performing usually restricted actions</description>
-	<distributionManagement>
-		<snapshotRepository>
-			<id>ossrh-sshtools</id>
-			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
-		</snapshotRepository>
-		<repository>
-			<id>ossrh-sshtools</id>
-			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-		</repository>
-	</distributionManagement>
 	<licenses>
 		<license>
 			<name>Apache License Version 2.0</name>
@@ -231,16 +221,16 @@
 					</executions>
 				</plugin>
 				<plugin>
-					<groupId>org.sonatype.plugins</groupId>
-					<artifactId>nexus-staging-maven-plugin</artifactId>
-					<version>1.6.13</version>
-					<extensions>true</extensions>
-					<configuration>
-						<serverId>ossrh-sshtools</serverId>
-						<nexusUrl>https://oss.sonatype.org/</nexusUrl>
-						<autoReleaseAfterClose>true</autoReleaseAfterClose>
-					</configuration>
-				</plugin>
+	          		<groupId>org.sonatype.central</groupId>
+	          		<artifactId>central-publishing-maven-plugin</artifactId>
+	          		<version>0.8.0</version>
+	          		<extensions>true</extensions>
+	          		<configuration>
+	          			<autoPublish>true</autoPublish>
+	                    <waitUntil>published</waitUntil>
+	            		<publishingServerId>central-sshtools</publishingServerId>
+	          		</configuration>
+	        	</plugin>
 			</plugins>
 		</pluginManagement>
 	</build>
@@ -268,10 +258,10 @@
 							</execution>
 						</executions>
 					</plugin>
-					<plugin>
-						<groupId>org.sonatype.plugins</groupId>
-						<artifactId>nexus-staging-maven-plugin</artifactId>
-					</plugin>
+				 	<plugin>
+		          		<groupId>org.sonatype.central</groupId>
+		          		<artifactId>central-publishing-maven-plugin</artifactId>
+		        	</plugin>
 				</plugins>
 			</build>
 		</profile>

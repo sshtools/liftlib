@@ -66,7 +66,6 @@ public class Helper implements Callable<Integer> {
 		return 0;
 	}
 
-	@SuppressWarnings("serial")
     private void cmdLoop(ObjectInputStream in, ObjectOutputStream out) throws IOException, ClassNotFoundException {
 		while (true) {
 			@SuppressWarnings("unchecked")

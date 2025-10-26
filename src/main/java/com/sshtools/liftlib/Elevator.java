@@ -38,7 +38,7 @@ import java.util.logging.Logger;
 import com.sshtools.liftlib.impl.ElevatedJVM;
 import com.sshtools.liftlib.impl.PlatformElevation;
 
-public final class Elevator {
+public final class Elevator implements IElevator {
 
 	private final static Logger LOG = Logger.getLogger(Elevator.class.getSimpleName());
 	
@@ -51,9 +51,26 @@ public final class Elevator {
 			builder.withReauthorizationPolicy(ReauthorizationPolicy.NEVER);
 			DEFAULT = builder.build();
 		}
+		
+		private static IElevator NULL = new IElevator() {
+			
+			@Override
+			public <S extends Serializable, E extends Serializable> S closure(ElevatedClosure<S, E> closure) throws Exception {
+				return closure.call();
+			}
+			
+			@Override
+			public void close() {
+			}
+			
+		};
 	}
 	
-	public static Elevator elevator() {
+	public static IElevator noElevation() {
+		return DefaultElevator.NULL;
+	}
+	
+	public static IElevator elevator() {
 		return DefaultElevator.DEFAULT;
 	}
 
@@ -231,6 +248,7 @@ public final class Elevator {
 		}
 	}
 
+	@Override
 	@SuppressWarnings("unchecked")
 	public <S extends Serializable, E extends Serializable> S closure(ElevatedClosure<S, E> closure) throws Exception {
 		synchronized (lock) {
@@ -348,6 +366,7 @@ public final class Elevator {
 		}
 	}
 
+	@Override
 	public void close() {
 		if(jvm != null)
 			try {
