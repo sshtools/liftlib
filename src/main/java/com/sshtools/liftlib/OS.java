@@ -312,7 +312,11 @@ public class OS {
 				var pb = new ProcessBuilder("logname");
 				var p = pb.start();
 				try (var rdr = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-					return !getAdministratorUsername().equals(rdr.readLine());
+					var ln = rdr.readLine();
+					if(ln == null || ln.equals("") || ln.equals("root") || ln.endsWith("no login name")) {
+						return false;
+					}
+					return !getAdministratorUsername().equals(ln);
 				}
 			} catch (Exception e) {
 			}
